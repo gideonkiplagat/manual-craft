@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
-import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Mail, Lock, User, Eye, EyeOff, Briefcase } from 'lucide-react';
 
 interface AuthDialogProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const AuthDialog = ({ isOpen, onClose, defaultTab = 'login' }: AuthDialog
     email: '',
     password: '',
     name: '',
+    role: '',
     confirmPassword: ''
   });
 
@@ -194,12 +196,29 @@ export const AuthDialog = ({ isOpen, onClose, defaultTab = 'login' }: AuthDialog
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role</Label>
+                  <div className="relative">
+                    <Briefcase className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
+                    <Select value={formData.role} onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}>
+                      <SelectTrigger className="pl-10">
+                        <SelectValue placeholder="Select your role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BA">Business Analyst</SelectItem>
+                        <SelectItem value="QA">Quality Engineer</SelectItem>
+                        <SelectItem value="Developer">Developer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <Button
                   variant="hero"
                   size="lg"
                   className="w-full"
                   onClick={handleSignup}
-                  disabled={isLoading}
+                  disabled={isLoading || !formData.role}
                 >
                   {isLoading ? (
                     <>
