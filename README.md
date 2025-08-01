@@ -1,73 +1,94 @@
-# Welcome to your Lovable project
+# 🌊 FlowToManual Frontend
 
-## Project info
+FlowToManual is a productivity platform that captures user workflows via screen and DOM activity recording, generating intelligent manuals and test scripts tailored for **Business Analysts**, **Quality Engineers**, and **Developers**.
 
-**URL**: https://lovable.dev/projects/2e3c1d66-5855-475b-95db-b70abaecdf8c
+This repository contains the **frontend** application, built with React, Vite, and TypeScript.
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## 🧱 Tech Stack
 
-**Use Lovable**
+- **React** (TypeScript)
+- **Vite** (Dev server & build tool)
+- **TailwindCSS** (Utility-first styling)
+- **ShadCN UI** (Component library)
+- **JWT Authentication** (Flask backend)
+- **Browser Extension** (DOM event integration)
+- **RecordRTC / rrweb** (Screen & webcam recording)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/2e3c1d66-5855-475b-95db-b70abaecdf8c) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🚀 Getting Started
 
-**Use your preferred IDE**
+### 1. Clone & Install
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+```bash
+git clone https://github.com/your-org/flowtomanual-frontend.git
+cd flowtomanual-frontend
+npm install
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### 2. Run the Development Server
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 🔐 Authentication & Roles
 
-**Use GitHub Codespaces**
+- Uses JWT-based authentication (token stored in `localStorage`)
+- Fetches user role from `/api/auth/me`
+- Conditionally renders features for:
+    - **Business Analyst (BA)**
+    - **Quality Engineer (QA)**
+    - **Developer**
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+---
 
-## What technologies are used for this project?
+## 🔗 API Integration
 
-This project is built with:
+- Communicates with a Flask backend via REST APIs
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+---
 
-## How can I deploy this project?
+## 🎥 Recording Features
 
-Simply open [Lovable](https://lovable.dev/projects/2e3c1d66-5855-475b-95db-b70abaecdf8c) and click on Share -> Publish.
+- Screen & webcam recording (RecordRTC / rrweb)
+- Red border overlay during recording
+- Timer and manual stop support
+- Captures screenshots at event intervals
+- Linked to a browser extension for DOM event capture
 
-## Can I connect a custom domain to my Lovable project?
+---
 
-Yes, you can!
+## 📝 Manual Generation
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+- Users select their role (BA, QA, Developer)
+- Choose from available recordings
+- Generate documentation in PDF, Word, or Excel formats
+- Integrates with RAG to include SOPs in outputs
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+---
+
+## 🧩 Browser Extension Sync
+
+- Logs DOM events from a browser extension running in the background
+- Events sent to `/events/log` with `recording_id`
+- Frontend passes `recording_id` to both extension and backend to tie sessions together
+- Preview events in the session dashboard (optional)
+
+---
+
+## 🏗️ Build for Production
+
+```bash
+npm run build
+```
+
+---
+
+## 📄 License
+
+[MIT](LICENSE)
