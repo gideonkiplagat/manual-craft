@@ -42,6 +42,12 @@ export const Header = ({
           <a href="#docs" className="text-sm font-medium hover:text-primary transition-colors">
             Documentation
           </a>
+          <a href="#docs" className="text-sm font-medium hover:text-primary transition-colors">
+            Recordings
+          </a>
+          <a href="#docs" className="text-sm font-medium hover:text-primary transition-colors">
+            SOPs
+          </a>
         </nav>
 
         <div className="flex items-center gap-3">

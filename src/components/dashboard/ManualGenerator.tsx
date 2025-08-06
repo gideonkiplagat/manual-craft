@@ -1,170 +1,161 @@
 import React, { useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { FileText, Download, Users, Code, TestTube, Sparkles } from 'lucide-react';
 
 interface ManualGeneratorProps {
   recordingId?: string;
-  onGenerateManual?: (role: string, format: string) => void;
+  onGenerateManual?: (role: string, format: string) => Promise<void> | void;
 }
 
-export const ManualGenerator = ({ recordingId, onGenerateManual }: ManualGeneratorProps) => {
-  const [selectedRole, setSelectedRole] = useState<string>('');
-  const [selectedFormat, setSelectedFormat] = useState<string>('pdf');
-  const [isGenerating, setIsGenerating] = useState(false);
+const roles = [
+  {
+    value: 'BA',
+    label: 'Business Analyst',
+    description: 'Use-case-oriented guides and business rules'
+  },
+  {
+    value: 'QA',
+    label: 'Quality Engineer',
+    description: 'Test steps, validations, and assertions'
+  },
+  {
+    value: 'Developer',
+    label: 'Developer',
+    description: 'Technical flow and system-level documentation'
+  }
+];
 
-  const roles = [
-    {
-      value: 'BA',
-      label: 'Business Analyst',
-      icon: Users,
-      description: 'Use-case-oriented guides and business rules',
-      color: 'bg-blue-100 text-blue-700 border-blue-200'
-    },
-    {
-      value: 'QA',
-      label: 'Quality Engineer',
-      icon: TestTube,
-      description: 'Test steps, validations, and assertions',
-      color: 'bg-green-100 text-green-700 border-green-200'
-    },
-    {
-      value: 'Developer',
-      label: 'Developer',
-      icon: Code,
-      description: 'Technical flow and system-level documentation',
-      color: 'bg-purple-100 text-purple-700 border-purple-200'
-    }
-  ];
+const formats = [
+  { value: 'PDF', label: 'PDF 📄' },
+  { value: 'Word', label: 'Word 📝' },
+  { value: 'Excel', label: 'Excel 📊' }
+];
 
-  const formats = [
-    { value: 'pdf', label: 'PDF Document', icon: '📄' },
-    { value: 'docx', label: 'Word Document', icon: '📝' },
-    { value: 'xlsx', label: 'Excel Spreadsheet', icon: '📊' }
-  ];
+const ManualGenerator: React.FC<ManualGeneratorProps> = ({ recordingId, onGenerateManual }) => {
+  const { id: routeRecordingId } = useParams<{ id: string }>();
+  const resolvedRecordingId = recordingId || routeRecordingId;
+
+  const [role, setRole] = useState<string>('BA');
+  const [format, setFormat] = useState<string>('PDF');
+  const [includeScreenshots, setIncludeScreenshots] = useState(true);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [generating, setGenerating] = useState<boolean>(false);
 
   const handleGenerate = async () => {
-    if (!selectedRole || !recordingId) return;
-    
-    setIsGenerating(true);
-    try {
-      await onGenerateManual?.(selectedRole, selectedFormat);
-    } finally {
-      setIsGenerating(false);
+    if (!resolvedRecordingId) {
+      setStatusMessage('❌ Recording ID is missing.');
+      return;
     }
-  };
 
-  const getRoleIcon = (role: string) => {
-    const roleData = roles.find(r => r.value === role);
-    if (!roleData) return Users;
-    return roleData.icon;
+    setGenerating(true);
+    setStatusMessage(null);
+
+    try {
+      if (onGenerateManual) {
+        await onGenerateManual(role, format);
+        setStatusMessage('✅ Manual generated successfully.');
+      } else {
+        const token = localStorage.getItem("token");
+        const exportFormat = format.toLowerCase();
+
+        const res = await fetch(`/api/manuals/generate/${resolvedRecordingId}?format=${exportFormat}&include_screenshots=${includeScreenshots}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData?.error || 'Failed to generate manual');
+        }
+
+        const blob = await res.blob();
+        const contentDisposition = res.headers.get('Content-Disposition');
+        const filenameMatch = contentDisposition?.match(/filename="?(.+)"?/);
+        const filename = filenameMatch ? filenameMatch[1] : `manual.${exportFormat}`;
+        
+
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+        setStatusMessage(`✅ Manual downloaded: ${filename}`);
+      }
+    } catch (error) {
+      console.error('Error generating manual:', error);
+      setStatusMessage('❌ Failed to generate manual.');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   return (
-    <Card className="p-6 bg-gradient-card backdrop-blur-sm shadow-glass">
-      <div className="space-y-6">
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <h3 className="text-lg font-semibold">Generate Manual</h3>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Create intelligent documentation from your recorded session
-          </p>
-        </div>
-
-        {/* Role Selection */}
-        <div className="space-y-3">
-          <label className="text-sm font-medium">Select Your Role</label>
-          <div className="grid gap-3">
-            {roles.map((role) => {
-              const Icon = role.icon;
-              const isSelected = selectedRole === role.value;
-              
-              return (
-                <div
-                  key={role.value}
-                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                    isSelected
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border bg-background/50 hover:border-primary/50'
-                  }`}
-                  onClick={() => setSelectedRole(role.value)}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${role.color}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{role.label}</span>
-                        {isSelected && (
-                          <Badge variant="default" className="text-xs">Selected</Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {role.description}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Format Selection */}
-        <div className="space-y-3">
-          <label className="text-sm font-medium">Export Format</label>
-          <Select value={selectedFormat} onValueChange={setSelectedFormat}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {formats.map((format) => (
-                <SelectItem key={format.value} value={format.value}>
-                  <div className="flex items-center gap-2">
-                    <span>{format.icon}</span>
-                    <span>{format.label}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Generate Button */}
-        <div className="pt-4">
-          <Button
-            variant="hero"
-            size="lg"
-            className="w-full"
-            onClick={handleGenerate}
-            disabled={!selectedRole || !recordingId || isGenerating}
-          >
-            {isGenerating ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground mr-2"></div>
-                Generating Manual...
-              </>
-            ) : (
-              <>
-                <FileText className="h-4 w-4 mr-2" />
-                Generate Manual
-              </>
-            )}
-          </Button>
-        </div>
-
-        {/* Info */}
-        <div className="text-center p-4 bg-accent rounded-lg">
-          <p className="text-xs text-accent-foreground">
-            🚀 Generation typically takes 30-60 seconds depending on session length
-          </p>
-        </div>
+    <Card className="p-4 space-y-4">
+      <div>
+        <Label>Choose Role</Label>
+        <Select value={role} onValueChange={setRole}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select a role" />
+          </SelectTrigger>
+          <SelectContent>
+            {roles.map((r) => (
+              <SelectItem key={r.value} value={r.value}>
+                {r.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
+
+      <div>
+        <Label>Choose Format</Label>
+        <Select value={format} onValueChange={setFormat}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select format" />
+          </SelectTrigger>
+          <SelectContent>
+            {formats.map((f) => (
+              <SelectItem key={f.value} value={f.value}>
+                {f.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Include Screenshots</Label>
+        <input
+          type="checkbox"
+          checked={includeScreenshots}
+          onChange={() => setIncludeScreenshots(!includeScreenshots)}
+          className="accent-blue-500"
+        />
+      </div>
+
+      <Button onClick={handleGenerate} disabled={generating}>
+        {generating ? 'Generating...' : 'Generate Manual'}
+      </Button>
+
+      {statusMessage && <p className="text-sm mt-2">{statusMessage}</p>}
     </Card>
   );
 };
+
+export default ManualGenerator;

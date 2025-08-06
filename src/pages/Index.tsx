@@ -76,7 +76,7 @@ const Index = () => {
     },
     {
       name: 'Pro',
-      price: '$29',
+      price: '$10',
       period: 'per month',
       description: 'For power users',
       features: [
@@ -90,7 +90,7 @@ const Index = () => {
     },
     {
       name: 'Team',
-      price: '$99',
+      price: '$50',
       period: 'per month',
       description: 'For teams and organizations',
       features: [

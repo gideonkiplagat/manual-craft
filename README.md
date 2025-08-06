@@ -81,6 +81,36 @@ npm run dev
 
 ---
 
+---
+## 📘 SOP (Standard Operating Procedure) Upload
+
+Each user can **optionally upload their own SOP documents** to help generate accurate and personalized manuals or test scripts.
+
+### ✅ Purpose
+- Personal SOPs allow the AI manual generator to **reference your preferred workflow**
+- RAG system gives **priority** to personal SOPs over global/default ones
+- Great for teams with different processes for similar software
+
+### 📤 How It Works
+
+| Action                 | Notes                                             |
+|------------------------|---------------------------------------------------|
+| Upload SOP             | plain text format supported         |
+| View/Delete SOP        | Manage your uploaded SOPs from the dashboard      |
+| AI RAG Integration     | Personal SOPs → Team SOPs → Global SOPs (fallback)|
+| Admin Not Required     | Any authenticated user can upload without approval|
+
+
+### 📁 Example Upload Flow
+
+1. User logs in
+2. Navigates to **"My SOPs"** tab
+3. Clicks **"Upload SOP"** → selects a `.docx` or `.pdf`
+4. SOP is stored and indexed for retrieval-augmented generation (RAG)
+
+> **Important:** The AI uses these SOPs only during **manual generation**, matching uploaded documents to tasks/events/screenshots during a session.
+---
+
 ## 🏗️ Build for Production
 
 ```bash
