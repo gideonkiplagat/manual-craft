@@ -85,9 +85,10 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
     onStartRecording?.();
   };
 
-  const handleStopRecording = async () => {
+  const handleStopRecording = async (data) => {
     setIsRecording(false);
     setRecordingTime(0);
+    console.log("data from stop recording:", data);
 
     if (!events || events.length < 1) {
       console.error("❌ No events to record");
@@ -95,34 +96,39 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
       return;
     }
 
-    try {
-      type SessionResponse = {
-        id: number;
-        message: string;
-      };
-
-      const response = await axios.post<SessionResponse>(
-        '/api/sessions/',
-        {
-          name: `Session ${new Date().toISOString()}`,
-          events
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-
-      const { id, message } = response.data;
-      console.log(`✅ Session saved with ID: ${id} — ${message}`);
-
-      // ✅ Notify parent with session ID
-      onStopRecording?.(id);
-
-    } catch (error: any) {
-      console.error('❌ Failed to save session:', error?.response?.data || error.message);
-    }
+   
   };
 
+  // const generateManual = async () => {
+  //    try {
+  //     type SessionResponse = {
+  //       id: number;
+  //       message: string;
+  //     };
+
+  //     const response = await axios.post<SessionResponse>(
+  //       '/api/sessions/',
+  //       {
+  //         name: `Session ${new Date().toISOString()}`,
+  //         events
+  //       },
+  //       {
+  //         headers: { Authorization: `Bearer ${token}` }
+  //       }
+  //     );
+
+  //     const { id, message } = response.data;
+  //     console.log(`✅ Session saved with ID: ${id} — ${message}`);
+
+  //     // ✅ Notify parent with session ID
+  //     onStopRecording?.(id);
+
+  //   } catch (error: any) {
+  //     console.error('❌ Failed to save session:', error?.response?.data || error.message);
+  //   }
+  // }
+  
+  
   return (
     <>
       {isRecording && (

@@ -18,7 +18,7 @@ const Dashboard = () => {
         const token = localStorage.getItem('token');
 
         const [recordingsRes, manualsRes] = await Promise.all([
-          axios.get<any[]>('/api/recordings', {
+          axios.get<any[]>('/api/recordings/upload', {
             headers: { Authorization: `Bearer ${token}` }
           }),
           axios.get<any[]>('/api/manuals', {
@@ -37,6 +37,7 @@ const Dashboard = () => {
   }, []);
 
   const handleRecordingFinished = (sessionId: number) => {
+    console.log("Recording finished with session ID:", sessionId);
     setLastRecordingId(sessionId);
   };
 
