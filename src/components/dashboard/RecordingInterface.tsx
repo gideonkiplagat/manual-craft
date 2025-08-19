@@ -11,6 +11,7 @@ interface RecordingInterfaceProps {
 }
 
 interface RecordingResponse {
+  recording: any;
   id: string;
   file_path: string;
 }
@@ -32,9 +33,11 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
   const [recordSettings] = useState({ screen: true, webcam: false, audio: true });
   const [events, setEvents] = useState<DomEvent[]>([]);
   const [token, setToken] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
+  const activeStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -69,7 +72,11 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
         value: (target as HTMLInputElement)?.value || undefined
       };
 
-      setEvents(prev => [...prev, eventData]);
+      setEvents(prev => {
+        const updated = [...prev, eventData];
+        localStorage.setItem('tracked_dom_events', JSON.stringify(updated));
+        return updated;
+      });
     };
 
     if (isRecording) {
@@ -96,28 +103,23 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
     setIsRecording(true);
     setRecordingTime(0);
     setEvents([]);
+    setErrorMsg(null);
 
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          frameRate: { ideal: 30, max: 30 },
-          width: { ideal: 1920, max: 1920 },
-          height: { ideal: 1080, max: 1080 }
-        },
+        video: { frameRate: { ideal: 30, max: 30 }, width: 1920, height: 1080 },
         audio: recordSettings.audio
       });
 
+      activeStreamRef.current = stream;
       stream.getVideoTracks()[0].onended = () => {
         console.log('User stopped sharing via browser controls');
         handleStopRecording();
       };
 
-      const options = { 
-        mimeType: 'video/webm;codecs=vp8,opus',
-        videoBitsPerSecond: 2500000
-      };
-      
+      const options = { mimeType: 'video/webm;codecs=vp8,opus', videoBitsPerSecond: 2500000 };
       const mediaRecorder = new MediaRecorder(stream, options);
+
       mediaRecorderRef.current = mediaRecorder;
       recordedChunksRef.current = [];
 
@@ -131,6 +133,7 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
       onStartRecording?.();
     } catch (err) {
       console.error("Error starting screen recording:", err);
+      setErrorMsg("Failed to start screen recording. Please allow permissions.");
       setIsRecording(false);
     }
   };
@@ -143,7 +146,7 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
       return [];
     }
   };
-
+const [recordingId, setRecordingId] = useState<any>(null);
   const handleStopRecording = async () => {
     setIsRecording(false);
 
@@ -152,18 +155,22 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
         mediaRecorderRef.current!.onstop = async () => {
           try {
             const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-            
+
+            // Clean up media tracks
+            activeStreamRef.current?.getTracks().forEach(track => track.stop());
+
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
             const formData = new FormData();
-            formData.append("file", videoBlob, "recording.webm");
-            
+            formData.append("file", videoBlob, "recording.webm"); // ✅ ensure .webm filename
+            formData.append("user_id", user.user_id);
+            formData.append("title", `Session ${new Date().toISOString()}`);
+            formData.append("description", "Recorded session");
+
             const uploadRes = await axios.post<RecordingResponse>('/api/recordings/upload', formData, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'multipart/form-data'
-              }
+              headers: { Authorization: `Bearer ${token}` } // ✅ no Content-Type
             });
-            
-            const recordingId = uploadRes.data.id;
+
+            const recordingId = uploadRes.data.recording.id;
             console.log("🎥 Video saved with ID:", recordingId);
 
             const sessionRes = await axios.post<SessionResponse>('/api/sessions/', {
@@ -179,14 +186,16 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
             resolve();
           } catch (error) {
             console.error("❌ Save failed:", error);
+            setErrorMsg("Failed to save recording. Please try again.");
             resolve();
           }
         };
-        
+
         mediaRecorderRef.current.stop();
       });
     }
   };
+  
 
   return (
     <>
@@ -211,6 +220,10 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
               </p>
             )}
           </div>
+
+          {errorMsg && (
+            <div className="text-center text-red-500 font-medium">{errorMsg}</div>
+          )}
 
           <div className="grid grid-cols-3 gap-4">
             <div className="flex flex-col items-center gap-2 p-3 rounded-lg border bg-background/50">
