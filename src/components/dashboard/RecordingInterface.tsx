@@ -1,5 +1,4 @@
-// components/dashboard/RecordingInterface.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,19 +7,34 @@ import axios from 'axios';
 
 interface RecordingInterfaceProps {
   onStartRecording?: () => void;
-  onStopRecording?: (sessionId: number) => void; // ✅ updated to accept sessionId
+  onStopRecording?: (sessionId: number | string | null, videoBlob: Blob | null) => void;
+}
+
+interface RecordingResponse {
+  id: string;
+  file_path: string;
+}
+
+interface SessionResponse {
+  id: string;
+}
+
+interface DomEvent {
+  type: string;
+  timestamp: string;
+  selector: string;
+  value?: string;
 }
 
 export const RecordingInterface = ({ onStartRecording, onStopRecording }: RecordingInterfaceProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [recordSettings] = useState({
-    screen: true,
-    webcam: false,
-    audio: true
-  });
-  const [events, setEvents] = useState<any[]>([]);
+  const [recordSettings] = useState({ screen: true, webcam: false, audio: true });
+  const [events, setEvents] = useState<DomEvent[]>([]);
   const [token, setToken] = useState<string | null>(null);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<BlobPart[]>([]);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -33,7 +47,7 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
       interval = setInterval(() => {
         setRecordingTime(prev => {
           if (prev >= 300) {
-            handleStopRecording(); // Auto-stop at 5 minutes
+            handleStopRecording();
             return prev;
           }
           return prev + 1;
@@ -48,7 +62,7 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
       const target = e.target as HTMLElement;
       const selector = target?.id ? `#${target.id}` : target?.tagName.toLowerCase();
 
-      const eventData = {
+      const eventData: DomEvent = {
         type: e.type,
         timestamp: new Date().toISOString(),
         selector,
@@ -82,44 +96,95 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
     setIsRecording(true);
     setRecordingTime(0);
     setEvents([]);
-    onStartRecording?.();
+
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          frameRate: { ideal: 30, max: 30 },
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 }
+        },
+        audio: recordSettings.audio
+      });
+
+      stream.getVideoTracks()[0].onended = () => {
+        console.log('User stopped sharing via browser controls');
+        handleStopRecording();
+      };
+
+      const options = { 
+        mimeType: 'video/webm;codecs=vp8,opus',
+        videoBitsPerSecond: 2500000
+      };
+      
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+      recordedChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.start(1000);
+      onStartRecording?.();
+    } catch (err) {
+      console.error("Error starting screen recording:", err);
+      setIsRecording(false);
+    }
+  };
+
+  const getTrackedEvents = (): DomEvent[] => {
+    const events = localStorage.getItem('tracked_dom_events');
+    try {
+      return events ? JSON.parse(events) : [];
+    } catch {
+      return [];
+    }
   };
 
   const handleStopRecording = async () => {
     setIsRecording(false);
-    setRecordingTime(0);
 
-    if (!events || events.length < 1) {
-      console.error("❌ No events to record");
-      alert("Please perform some actions during the recording before stopping.");
-      return;
-    }
+    if (mediaRecorderRef.current) {
+      return new Promise<void>((resolve) => {
+        mediaRecorderRef.current!.onstop = async () => {
+          try {
+            const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+            
+            const formData = new FormData();
+            formData.append("file", videoBlob, "recording.webm");
+            
+            const uploadRes = await axios.post<RecordingResponse>('/api/recordings/upload', formData, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data'
+              }
+            });
+            
+            const recordingId = uploadRes.data.id;
+            console.log("🎥 Video saved with ID:", recordingId);
 
-    try {
-      type SessionResponse = {
-        id: number;
-        message: string;
-      };
+            const sessionRes = await axios.post<SessionResponse>('/api/sessions/', {
+              name: `Session ${new Date().toISOString()}`,
+              events: getTrackedEvents(),
+              recording_id: recordingId
+            }, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
 
-      const response = await axios.post<SessionResponse>(
-        '/api/sessions/',
-        {
-          name: `Session ${new Date().toISOString()}`,
-          events
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-
-      const { id, message } = response.data;
-      console.log(`✅ Session saved with ID: ${id} — ${message}`);
-
-      // ✅ Notify parent with session ID
-      onStopRecording?.(id);
-
-    } catch (error: any) {
-      console.error('❌ Failed to save session:', error?.response?.data || error.message);
+            console.log("✅ Session saved with ID:", sessionRes.data.id);
+            onStopRecording?.(sessionRes.data.id, videoBlob);
+            resolve();
+          } catch (error) {
+            console.error("❌ Save failed:", error);
+            resolve();
+          }
+        };
+        
+        mediaRecorderRef.current.stop();
+      });
     }
   };
 
