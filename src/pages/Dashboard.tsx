@@ -62,8 +62,8 @@ const Dashboard = () => {
       );
 
       // assuming backend returns { manualId: number }
-      if (res.data?.manualId) {
-        setGeneratedManualId(res.data.manualId);
+      if (res.data?.manual_id) {
+        setGeneratedManualId(res.data.manual_id);
       }
       setManualSuccess(true);
     } catch (err) {
@@ -74,6 +74,7 @@ const Dashboard = () => {
   const handleDownloadManual = () => {
     if (!generatedManualId) return;
     const token = localStorage.getItem("token");
+    console.log("Downloading manual with ID:", generatedManualId);
     window.open(`/api/manuals/download/${generatedManualId}?token=${token}`, "_blank");
   };
 
