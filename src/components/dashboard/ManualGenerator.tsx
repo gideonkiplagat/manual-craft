@@ -37,7 +37,7 @@ const roles = [
 
 const formats = [
   { value: 'PDF', label: 'PDF 📄' },
-  { value: 'Word', label: 'Word 📝' },
+  { value: 'Docx', label: 'word 📝' },
   { value: 'Excel', label: 'Excel 📊' }
 ];
 

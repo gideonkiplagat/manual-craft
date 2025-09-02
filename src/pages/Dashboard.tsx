@@ -53,7 +53,7 @@ const Dashboard = () => {
   const handleGenerateManual = async (role: string, format: string) => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.post(
+      const res = await axios.post<{ manual_id: number }>(
         `/api/manuals/generate/${lastRecordingId}?format=${format.toLowerCase()}`,
         {},
         {

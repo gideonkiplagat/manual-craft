@@ -1,18 +1,36 @@
 {
   "manifest_version": 3,
-  "name": "FlowToManul Recorder",
-  "version": "1.0",
-  "permissions": ["tabs", "storage", "scripting", "activeTab"],
+  "name": "FlowToManual Recorder Bridge",
+  "version": "1.0.0",
+  "description": "Capture screenshots from the active working tab (not the FlowToManual app tab) and stream steps back to the app.",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
-    "service_worker": "background.js"
-  },
-  "action": {
-    "default_popup": "popup.html"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content-active.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "http://localhost:8080/*",
+        "https://your-flowtomanual-domain.com/*"
+      ],
+      "js": ["content-app.js"],
+      "run_at": "document_start"
     }
-  ]
+  ],
+  "action": {
+    "default_title": "FlowToManual Recorder Bridge"
+  }
 }
