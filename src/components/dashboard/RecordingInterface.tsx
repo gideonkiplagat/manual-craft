@@ -7,7 +7,7 @@ import axios from 'axios';
 
 interface RecordingInterfaceProps {
   onStartRecording?: () => void;
-  onStopRecording?: (sessionId: number | string | null, videoBlob: Blob | null) => void;
+  onStopRecording?: (sessionId: number | string | null, recordingId: string | null, videoBlob: Blob | null) => void;
 }
 
 interface RecordingResponse {
@@ -331,16 +331,25 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
 
             activeStreamRef.current?.getTracks().forEach(track => track.stop());
 
-            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            // ✅ Removed user_id - backend gets it from JWT token
             const formData = new FormData();
             formData.append("file", videoBlob, "recording.webm");
-            formData.append("user_id", user.user_id);
             formData.append("title", `Session ${new Date().toISOString()}`);
             formData.append("description", "Recorded session");
 
-            const uploadRes = await axios.post<RecordingResponse>('/api/recordings/upload', formData, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
+            console.log('Uploading recording, size bytes:', videoBlob.size, 'token present:', !!token);
+            let uploadRes;
+            try {
+              uploadRes = await axios.post<RecordingResponse>('/api/recordings/upload', formData, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              console.log('Upload response:', uploadRes?.status, uploadRes?.data);
+            } catch (uploadErr) {
+              console.error('Recording upload failed:', uploadErr);
+              setErrorMsg('Failed to upload recording to server. See console for details.');
+              resolve();
+              return;
+            }
 
             const savedRecordingId =
               (uploadRes.data?.recording && (uploadRes.data.recording.id || uploadRes.data.recording._id)) ||
@@ -368,7 +377,7 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
               console.warn("Could not upload steps/screenshots:", e);
             }
 
-            onStopRecording?.(sessionId, videoBlob);
+            onStopRecording?.(sessionId, savedRecordingId, videoBlob);
             resolve();
           } catch (error) {
             setErrorMsg("Failed to save recording. Please try again.");
