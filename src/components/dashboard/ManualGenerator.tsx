@@ -37,7 +37,7 @@ const roles = [
 
 const formats = [
   { value: 'PDF', label: 'PDF 📄' },
-  { value: 'Word', label: 'Word 📝' },
+  { value: 'Docx', label: 'word 📝' },
   { value: 'Excel', label: 'Excel 📊' }
 ];
 
@@ -68,7 +68,8 @@ const ManualGenerator: React.FC<ManualGeneratorProps> = ({ recordingId, onGenera
         const token = localStorage.getItem("token");
         const exportFormat = format.toLowerCase();
 
-        const res = await fetch(`/api/manuals/generate/${resolvedRecordingId}?format=${exportFormat}&include_screenshots=${includeScreenshots}`, {
+        // ✅ Updated to use /recording/ endpoint that accepts recording_id
+        const res = await fetch(`/api/manuals/generate/recording/${resolvedRecordingId}?format=${exportFormat}&include_screenshots=${includeScreenshots}`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`
