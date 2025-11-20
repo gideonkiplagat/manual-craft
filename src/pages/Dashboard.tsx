@@ -39,18 +39,40 @@ const Dashboard = () => {
           return;
         }
 
-        const [recordingsRes, manualsRes] = await Promise.all([
-          // list recordings (was mistakenly calling the upload endpoint here)
-          axios.get<any[]>('/api/recordings', {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get<any[]>('/api/manuals', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-        ]);
+        // fetch recordings and manuals. Some backends may not expose a recordings-list endpoint yet.
+        let recordingsRes: any = null;
+        let manualsRes: any = null;
 
-        setRecentRecordings(Array.isArray(recordingsRes.data) ? recordingsRes.data : []);
-        setRecentManuals(Array.isArray(manualsRes.data) ? manualsRes.data : []);
+        try {
+          recordingsRes = await axios.get<any[]>('/api/recordings', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setRecentRecordings(Array.isArray(recordingsRes.data) ? recordingsRes.data : []);
+        } catch (recErr: any) {
+          // If endpoint is missing (404) or not allowed (405) treat as empty list; otherwise present error
+          console.warn('Could not load recordings list', recErr?.response?.status || recErr.message);
+          const status = recErr.response?.status;
+          if (status === 404 || status === 405) {
+            setRecentRecordings([]);
+          } else if (status === 401) {
+            throw recErr; // let outer catch handle auth
+          } else {
+            // non-auth error - show empty and continue
+            setRecentRecordings([]);
+          }
+        }
+
+        try {
+          manualsRes = await axios.get<any[]>('/api/manuals/', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setRecentManuals(Array.isArray(manualsRes.data) ? manualsRes.data : []);
+        } catch (manErr: any) {
+          // If unauthorized, throw to outer handler to redirect to login
+          if (manErr.response?.status === 401) throw manErr;
+          console.warn('Could not load manuals list', manErr?.response?.status || manErr.message);
+          setRecentManuals([]);
+        }
       } catch (error: any) {
         console.error('Failed to fetch recent activity', error);
         

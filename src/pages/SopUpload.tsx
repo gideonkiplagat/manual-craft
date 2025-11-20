@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -6,11 +6,31 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 
-export const SopUpload = () => {
+export const MySops = () => {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [sops, setSops] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchSops = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get("/api/sops/");
+      // Backend returns { sops: ["filename.ext"] }
+  setSops(Array.isArray((res as any).data?.sops) ? (res as any).data.sops : []);
+    } catch (err) {
+      console.error("Failed to fetch sops", err);
+      toast({ title: "Could not load SOPs" , variant: "destructive"});
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSops();
+  }, []);
 
   const handleUpload = async () => {
     if (!file) {
@@ -26,9 +46,10 @@ export const SopUpload = () => {
       formData.append("title", title);
       formData.append("description", description);
 
-      const res = await axios.post("/api/sops/upload", formData, {
+      // backend registers POST /api/sops/ (see swagger.json).
+      // Let axios set the multipart Content-Type (with boundary) automatically.
+      await axios.post("/api/sops/", formData, {
         headers: {
-          "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       });
@@ -37,6 +58,9 @@ export const SopUpload = () => {
       setFile(null);
       setTitle("");
       setDescription("");
+
+      // Refresh the list so the user sees the uploaded file
+      await fetchSops();
     } catch (error) {
       console.error(error);
       toast({
@@ -49,11 +73,41 @@ export const SopUpload = () => {
     }
   };
 
-  return (
-    <div className="p-6 max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Upload SOP</h1>
+  const handleDownload = async (name: string) => {
+    try {
+      // Try to fetch the file as a blob from /api/sops/{name}
+      const res = (await axios.get(`/api/sops/${encodeURIComponent(name)}`, {
+        responseType: "blob",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })) as any;
 
-      <div className="space-y-4">
+      const url = window.URL.createObjectURL(res.data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error("Download failed", err);
+      // If server doesn't support direct file downloads, communicate that to the user
+      toast({
+        title: "Download not available",
+        description:
+          err?.response?.status === 404
+            ? "Server does not expose a download endpoint for individual SOPs yet."
+            : "Failed to download file.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">My SOPs</h1>
+
+      <div className="space-y-4 mb-8">
         <div>
           <Label htmlFor="title">Title</Label>
           <Input
@@ -79,7 +133,7 @@ export const SopUpload = () => {
           <Input
             id="file"
             type="file"
-            accept=".pdf,.docx,.txt"
+            accept=".pdf,.docx,.txt,.md"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
           />
         </div>
@@ -88,9 +142,33 @@ export const SopUpload = () => {
           {uploading ? "Uploading..." : "Upload SOP"}
         </Button>
       </div>
+
+      <section>
+        <h2 className="text-lg font-semibold mb-2">Uploaded SOPs</h2>
+        {loading ? (
+          <p>Loading…</p>
+        ) : sops.length === 0 ? (
+          <p className="text-muted-foreground">No SOPs uploaded yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {sops.map((s) => (
+              <li key={s} className="flex items-center justify-between">
+                <span className="truncate max-w-xl">{s}</span>
+                <div className="space-x-2">
+                  <Button size="sm" onClick={() => handleDownload(s)}>
+                    Download
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 };
+
+export default MySops;
 
 
 

@@ -52,6 +52,72 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
   const stepsRef = useRef<StepPayload[]>([]);
 
   const [recordingId, setRecordingId] = useState<any>(null);
+  const [lastVideoUrl, setLastVideoUrl] = useState<string | null>(null);
+  const [thumbnails, setThumbnails] = useState<string[]>([]);
+
+  // Extract N thumbnails from a video Blob at relative positions (0.2, 0.5, 0.8)
+  const extractThumbnails = async (blob: Blob, count = 3): Promise<string[]> => {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(blob);
+      const vid = document.createElement('video');
+      vid.src = url;
+      vid.muted = true;
+      vid.playsInline = true;
+
+      const results: string[] = [];
+
+      const cleanup = () => {
+        URL.revokeObjectURL(url);
+        vid.src = '';
+      };
+
+      vid.addEventListener('loadedmetadata', async () => {
+        const duration = vid.duration || 0;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const seekTo = (time: number) => new Promise<void>((res) => {
+          const handler = () => {
+            try {
+              canvas.width = vid.videoWidth || 1280;
+              canvas.height = vid.videoHeight || 720;
+              if (ctx) ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+              const dataUrl = canvas.toDataURL('image/png');
+              results.push(dataUrl);
+            } catch (e) {
+              console.warn('Thumbnail capture failed', e);
+            }
+            vid.removeEventListener('seeked', handler);
+            res();
+          };
+          vid.addEventListener('seeked', handler);
+          try {
+            vid.currentTime = Math.min(Math.max(0, time), duration - 0.01);
+          } catch (e) {
+            // some browsers throw on setting currentTime before ready
+            console.warn('Could not set currentTime for thumbnail', e);
+            res();
+          }
+        });
+
+        // choose relative positions
+        const rels = count === 1 ? [0.5] : [0.2, 0.5, 0.8].slice(0, count);
+        for (let r of rels) {
+          await seekTo(r * duration || 0);
+        }
+
+        cleanup();
+        resolve(results);
+      });
+
+      // Fallback: if metadata doesn't load within 3s, resolve empty
+      setTimeout(() => {
+        if (results.length === 0) {
+          cleanup();
+          resolve(results);
+        }
+      }, 3000);
+    });
+  };
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -344,33 +410,71 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
                 headers: { Authorization: `Bearer ${token}` }
               });
               console.log('Upload response:', uploadRes?.status, uploadRes?.data);
-            } catch (uploadErr) {
+            } catch (uploadErr: any) {
+              // Improved logging for upload failures
               console.error('Recording upload failed:', uploadErr);
-              setErrorMsg('Failed to upload recording to server. See console for details.');
+              if (uploadErr.response) {
+                console.error('Upload response status:', uploadErr.response.status);
+                console.error('Upload response data:', uploadErr.response.data);
+                setErrorMsg(`Upload failed: ${uploadErr.response.status} ${uploadErr.response.data?.error || ''}`);
+              } else if (uploadErr.request) {
+                // Network error (no response)
+                console.error('Upload request error (no response):', uploadErr.message);
+                setErrorMsg(`Network error during upload: ${uploadErr.message}`);
+              } else {
+                console.error('Upload error:', uploadErr.message);
+                setErrorMsg(`Upload error: ${uploadErr.message}`);
+              }
+
+              // expose some debugging info in console for the recorded blob
+              console.log('Recorded blob size (bytes):', videoBlob.size);
               resolve();
               return;
             }
 
             const savedRecordingId =
-              (uploadRes.data?.recording && (uploadRes.data.recording.id || uploadRes.data.recording._id)) ||
-              uploadRes.data?.id;
+              (uploadRes?.data?.recording && (uploadRes.data.recording.id || uploadRes.data.recording._id)) ||
+              uploadRes?.data?.id;
 
             setRecordingId(savedRecordingId);
 
-            const sessionRes = await axios.post<SessionResponse>('/api/sessions/', {
+            // Save a preview URL so user can verify the recorded video
+            try {
+              const url = window.URL.createObjectURL(videoBlob);
+              setLastVideoUrl(url);
+
+              // Extract thumbnails for LLM context and debugging
+              try {
+                const thumbs = await extractThumbnails(videoBlob, 3);
+                setThumbnails(thumbs);
+                console.log('Extracted thumbnails count:', thumbs.length);
+              } catch (thumbErr) {
+                console.warn('Thumbnail extraction failed', thumbErr);
+              }
+            } catch (e) {
+              console.warn('Could not create preview URL for recorded blob', e);
+            }
+
+            // Attach thumbnails (if any) to session create so backend/LLM can access them
+            const sessionPayload: any = {
               name: `Session ${new Date().toISOString()}`,
               events: getTrackedEvents(),
               recording_id: String(savedRecordingId)
-            }, {
+            };
+            if (thumbnails && thumbnails.length > 0) sessionPayload.thumbnails = thumbnails;
+
+            const sessionRes = await axios.post<SessionResponse>('/api/sessions/', sessionPayload, {
               headers: { Authorization: `Bearer ${token}` }
             });
 
             const sessionId = sessionRes.data.id;
 
             try {
-              await axios.post(`/api/sessions/${sessionId}/steps`, {
-                steps: stepsRef.current
-              }, {
+              // include extracted thumbnails as a step-like summary as well
+              const stepsPayload = { steps: stepsRef.current } as any;
+              if (thumbnails && thumbnails.length > 0) stepsPayload.thumbnails = thumbnails;
+              console.log('Posting steps payload:', stepsPayload);
+              await axios.post(`/api/sessions/${sessionId}/steps`, stepsPayload, {
                 headers: { Authorization: `Bearer ${token}` }
               });
             } catch (e) {
@@ -392,6 +496,22 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
 
   return (
     <>
+      {lastVideoUrl && (
+        <div className="mt-4">
+          <h4 className="text-sm font-medium mb-2">Last Recording Preview</h4>
+          <video src={lastVideoUrl} controls className="w-full rounded" />
+        </div>
+      )}
+      {thumbnails.length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-sm font-medium mb-2">Extracted Thumbnails</h4>
+          <div className="flex gap-2">
+            {thumbnails.map((t, i) => (
+              <img key={i} src={t} alt={`thumb-${i}`} className="h-24 rounded" />
+            ))}
+          </div>
+        </div>
+      )}
       {isRecording && (
         <div className="fixed top-0 left-0 right-0 bottom-0 border-4 border-red-600 pointer-events-none z-50" />
       )}

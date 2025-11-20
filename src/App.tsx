@@ -6,11 +6,13 @@ import { BrowserRouter, Routes, Route, useParams } from "react-router-dom";
 
 import Index from "@/pages/Index";
 import Dashboard from "@/pages/Dashboard";
-import { SopUpload } from "@/pages/SopUpload";
+import MySops from "@/pages/SopUpload";
 import GenerateManual from "./components/dashboard/ManualGenerator";
 import SessionViewer from "@/pages/SessionViewer";
 import { Settings } from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
+import Manuals from "@/pages/Manuals";
+import Recordings from "@/pages/Recordings";
 
 import { AuthProvider } from "@/context/AuthContext";
 import axios from "axios";
@@ -54,7 +56,9 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/sops" element={<SopUpload />} />
+            <Route path="/manuals" element={<Manuals />} />
+            <Route path="/recordings" element={<Recordings />} />
+            <Route path="/sops" element={<MySops />} />
             <Route path="/generate/:id" element={<GenerateManualWrapper />} />
             <Route path="/sessions/:id" element={<SessionViewer />} />
             <Route path="/settings" element={<Settings />} />

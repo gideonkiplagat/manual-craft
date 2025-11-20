@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Play, User, Menu } from 'lucide-react';
 
@@ -16,7 +17,7 @@ export const Header = ({
   onMenuClick 
 }: HeaderProps) => {
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+  <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 bg-gradient-to-r from-indigo-50 via-white to-purple-50">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
@@ -33,21 +34,11 @@ export const Header = ({
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-6">
-          <a href="#features" className="text-sm font-medium hover:text-primary transition-colors">
-            Features
-          </a>
-          <a href="#pricing" className="text-sm font-medium hover:text-primary transition-colors">
-            Pricing
-          </a>
-          <a href="#docs" className="text-sm font-medium hover:text-primary transition-colors">
-            Documentation
-          </a>
-          <a href="#docs" className="text-sm font-medium hover:text-primary transition-colors">
-            Recordings
-          </a>
-          <a href="#docs" className="text-sm font-medium hover:text-primary transition-colors">
-            SOPs
-          </a>
+          <Link to="/#features" className="text-sm font-medium hover:text-primary transition-colors">Features</Link>
+          <Link to="/#pricing" className="text-sm font-medium hover:text-primary transition-colors">Pricing</Link>
+          <Link to="/manuals" className="text-sm font-medium hover:text-primary transition-colors">Documentation</Link>
+          <Link to="/recordings" className="text-sm font-medium hover:text-primary transition-colors">Recordings</Link>
+          <Link to="/sops" className="text-sm font-medium hover:text-primary transition-colors">SOPs</Link>
         </nav>
 
         <div className="flex items-center gap-3">
