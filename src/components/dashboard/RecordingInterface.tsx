@@ -7,7 +7,14 @@ import axios from 'axios';
 
 interface RecordingInterfaceProps {
   onStartRecording?: () => void;
-  onStopRecording?: (sessionId: number | string | null, recordingId: string | null, videoBlob: Blob | null) => void;
+  // now include thumbnails and steps when reporting stop
+  onStopRecording?: (
+    sessionId: number | string | null,
+    recordingId: string | null,
+    videoBlob: Blob | null,
+    thumbnails?: string[],
+    steps?: StepPayload[]
+  ) => void;
 }
 
 interface RecordingResponse {
@@ -120,7 +127,10 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
   };
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
+    const storedToken =
+      localStorage.getItem('token') ||
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('auth_token');
     if (storedToken) setToken(storedToken);
   }, []);
 
@@ -193,135 +203,65 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
 
   useEffect(() => {
     const handleEvent = (e: Event) => {
-    const target = e.target as HTMLElement;
-    const selector = getElementSelector(target);
+      const target = e.target as HTMLElement;
+      const selector = getElementSelector(target);
 
-  const eventData: DomEvent = {
-    type: e.type,
-    timestamp: new Date().toISOString(),
-    selector,
-    value: (target as HTMLInputElement)?.value || undefined,
-    ...(e.type === "keydown" ? { key: (e as KeyboardEvent).key } : {})
-  };
-
-  setEvents(prev => {
-    const updated = [...prev, eventData];
-    localStorage.setItem('tracked_dom_events', JSON.stringify(updated));
-    return updated;
-  });
-
-  (async () => {
-    if (!isRecording) return;
-
-    const prettyValue =
-      (eventData.value && eventData.value.length > 0) ? ` = "${eventData.value}"` : "";
-    const desc = `${eventData.type} on ${eventData.selector}${prettyValue}`;
-
-    // ✅ Only take screenshots on clicks (not inputs/keydowns)
-    let screenshot: string | undefined;
-    if (e.type === "click") {
-      screenshot = await captureScreenshot();
-    }
-
-    stepsRef.current.push({
-      timestamp: Date.now(),
-      event_type: eventData.type,
-      description: desc,
-      screenshot
-    });
-  })();
-};
-
-
-    const handleVisibilityChange = () => {
-      if (!isRecording) return;
-      const state = document.visibilityState === "visible" ? "Tab Visible" : "Tab Hidden";
       const eventData: DomEvent = {
-        type: "tab-visibility",
+        type: e.type,
         timestamp: new Date().toISOString(),
-        selector: "document",
-        value: state
+        selector,
+        value: (target as HTMLInputElement)?.value || undefined,
+        ...(e.type === 'keydown' ? { key: (e as KeyboardEvent).key } : {})
       };
+
       setEvents(prev => {
         const updated = [...prev, eventData];
-        localStorage.setItem("tracked_dom_events", JSON.stringify(updated));
+        localStorage.setItem('tracked_dom_events', JSON.stringify(updated));
         return updated;
       });
-      (async () => {
-        const screenshot = await captureScreenshot();
-        stepsRef.current.push({
-          timestamp: Date.now(),
-          event_type: "tab-visibility",
-          description: `User switched tab: ${state}`,
-          screenshot
-        });
-      })();
-    };
 
-    const handleFocus = () => {
-      if (!isRecording) return;
-      const eventData: DomEvent = {
-        type: "window-focus",
-        timestamp: new Date().toISOString(),
-        selector: "window",
-        value: "focused"
-      };
-      setEvents(prev => {
-        const updated = [...prev, eventData];
-        localStorage.setItem("tracked_dom_events", JSON.stringify(updated));
-        return updated;
-      });
       (async () => {
-        const screenshot = await captureScreenshot();
-        stepsRef.current.push({
-          timestamp: Date.now(),
-          event_type: "window-focus",
-          description: "User focused window",
-          screenshot
-        });
-      })();
-    };
+        if (!isRecording) return;
 
-    const handleBlur = () => {
-      if (!isRecording) return;
-      const eventData: DomEvent = {
-        type: "window-blur",
-        timestamp: new Date().toISOString(),
-        selector: "window",
-        value: "blurred"
-      };
-      setEvents(prev => {
-        const updated = [...prev, eventData];
-        localStorage.setItem("tracked_dom_events", JSON.stringify(updated));
-        return updated;
-      });
-      (async () => {
-        const screenshot = await captureScreenshot();
+        const prettyValue = (eventData.value && eventData.value.length > 0) ? ` = "${eventData.value}"` : '';
+        const desc = `${eventData.type} on ${eventData.selector}${prettyValue}`;
+
+        // Only these cause screenshots / steps for LLM context
+        const EVENTS_REQUIRING_SCREENSHOT = [
+          'click',
+          'input',
+          'change',
+          'submit',
+          'navigation',
+          'page-load',
+          'menu'
+        ];
+
+        let screenshot: string | undefined;
+        if (EVENTS_REQUIRING_SCREENSHOT.includes(eventData.type)) {
+          screenshot = await captureScreenshot();
+        }
+
         stepsRef.current.push({
           timestamp: Date.now(),
-          event_type: "window-blur",
-          description: "User blurred window",
+          event_type: eventData.type,
+          description: desc,
           screenshot
         });
       })();
     };
 
     if (isRecording) {
-      ['click', 'input', 'change', 'submit', 'keydown'].forEach(evt =>
+      // Only capture meaningful interactions — avoid focus/blur/visibility noise
+      ['click', 'input', 'change', 'submit', 'keydown', 'keyup'].forEach(evt =>
         document.addEventListener(evt, handleEvent, true)
       );
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-      window.addEventListener("focus", handleFocus);
-      window.addEventListener("blur", handleBlur);
     }
 
     return () => {
-      ['click', 'input', 'change', 'submit', 'keydown'].forEach(evt =>
+      ['click', 'input', 'change', 'submit', 'keydown', 'keyup'].forEach(evt =>
         document.removeEventListener(evt, handleEvent, true)
       );
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
-      window.removeEventListener("blur", handleBlur);
     };
   }, [isRecording]);
 
@@ -339,6 +279,15 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
     setErrorMsg(null);
 
     try {
+      // Preflight: ensure browser supports screen capture
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        setErrorMsg(
+          'Screen capture is not supported by your browser. Use Chrome, Edge or Firefox on a secure origin (HTTPS or localhost).'
+        );
+        setIsRecording(false);
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: { ideal: 30, max: 30 }, width: 1920, height: 1080 },
         audio: recordSettings.audio
@@ -371,8 +320,32 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
 
       mediaRecorder.start(1000);
       onStartRecording?.();
-    } catch (err) {
-      setErrorMsg("Failed to start screen recording. Please allow permissions.");
+    } catch (err: any) {
+      console.error('getDisplayMedia error:', err);
+
+      const makeMsg = (e: any) => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+          return 'Screen capture is not available in this browser. Open the app in a supported browser (Chrome/Edge/Firefox) on HTTPS or localhost.';
+        }
+        const name = e?.name || '';
+        switch (name) {
+          case 'NotAllowedError':
+          case 'PermissionDeniedError':
+            return 'Permission denied. Please allow screen sharing in the browser prompt (you may need to click the "Share" or "Allow" button).';
+          case 'NotFoundError':
+            return 'No display or window found to capture.';
+          case 'NotReadableError':
+            return 'Screen capture failed because the display is not readable (another app may be using it).';
+          case 'SecurityError':
+            return 'Screen capture requires a secure context (HTTPS) or localhost. Open the app over HTTPS.';
+          case 'AbortError':
+            return 'Screen capture was aborted. Try again.';
+          default:
+            return e?.message || 'Failed to start screen recording. Please allow permissions.';
+        }
+      };
+
+      setErrorMsg(makeMsg(err));
       setIsRecording(false);
     }
   };
@@ -403,11 +376,12 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
             formData.append("title", `Session ${new Date().toISOString()}`);
             formData.append("description", "Recorded session");
 
-            console.log('Uploading recording, size bytes:', videoBlob.size, 'token present:', !!token);
+            const authToken = token ?? localStorage.getItem('token') ?? localStorage.getItem('access_token');
+            console.log('Uploading recording, size bytes:', videoBlob.size, 'token present:', !!authToken);
             let uploadRes;
             try {
               uploadRes = await axios.post<RecordingResponse>('/api/recordings/upload', formData, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${authToken}` }
               });
               console.log('Upload response:', uploadRes?.status, uploadRes?.data);
             } catch (uploadErr: any) {
@@ -428,6 +402,11 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
 
               // expose some debugging info in console for the recorded blob
               console.log('Recorded blob size (bytes):', videoBlob.size);
+              try {
+                onStopRecording?.(null, null, videoBlob, thumbnails, stepsRef.current);
+              } catch (e) {
+                console.warn('onStopRecording handler threw', e);
+              }
               resolve();
               return;
             }
@@ -463,25 +442,74 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
             };
             if (thumbnails && thumbnails.length > 0) sessionPayload.thumbnails = thumbnails;
 
-            const sessionRes = await axios.post<SessionResponse>('/api/sessions/', sessionPayload, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-
-            const sessionId = sessionRes.data.id;
-
+            const authToken2 = token ?? localStorage.getItem('token') ?? localStorage.getItem('access_token');
+            let sessionId: number | string | null = null;
             try {
-              // include extracted thumbnails as a step-like summary as well
-              const stepsPayload = { steps: stepsRef.current } as any;
-              if (thumbnails && thumbnails.length > 0) stepsPayload.thumbnails = thumbnails;
-              console.log('Posting steps payload:', stepsPayload);
-              await axios.post(`/api/sessions/${sessionId}/steps`, stepsPayload, {
-                headers: { Authorization: `Bearer ${token}` }
+              console.log('Creating session with payload:', sessionPayload);
+              const sessionRes = await axios.post<SessionResponse>('/api/sessions/', sessionPayload, {
+                headers: { Authorization: `Bearer ${authToken2}` }
               });
+              sessionId = sessionRes?.data?.id;
+              console.log('Created session id:', sessionId);
+
+              // If extension is available, write session id and token so content scripts/background can use them
+              try {
+                if (window.chrome && chrome.storage && chrome.storage.sync) {
+                  chrome.storage.sync.set({ flowtomanual_session_id: sessionId, flowtomanual_token: authToken2 }, () => {
+                    console.log('Wrote session id to chrome.storage.sync');
+                  });
+                }
+              } catch (e) {
+                // ignore
+              }
             } catch (e) {
-              console.warn("Could not upload steps/screenshots:", e);
+              console.warn('Failed to create session:', e);
             }
 
-            onStopRecording?.(sessionId, savedRecordingId, videoBlob);
+            try {
+              // Build events payload merging tracked DOM events and captured screenshots
+              const tracked = getTrackedEvents();
+              const mapped = (tracked || []).map((t) => {
+                // t.timestamp is ISO string
+                let ts = Date.parse(t.timestamp || '') || Date.now();
+                // find matching screenshot in stepsRef (close timestamp)
+                const match = stepsRef.current.find(s => Math.abs(s.timestamp - ts) < 2000 && s.description.includes(t.selector));
+                return {
+                  type: t.type,
+                  selector: t.selector,
+                  value: t.value || '',
+                  timestamp: ts,
+                  url: window.location.href,
+                  title: document.title || '',
+                  screenshot: match ? match.screenshot : null
+                };
+              });
+
+              // If thumbnails exist, attach them as a special event so backend persists them
+              if (thumbnails && thumbnails.length > 0) {
+                thumbnails.forEach((thumb, i) => mapped.push({ type: 'thumbnail', selector: `thumbnail-${i}`, value: '', timestamp: Date.now() + i, url: window.location.href, title: document.title || '', screenshot: thumb }));
+              }
+
+              if (sessionId) {
+                const authToken3 = authToken2;
+                console.log('Uploading events to session', sessionId, mapped.length);
+                await axios.post(`/api/sessions/${sessionId}/events`, { events: mapped }, {
+                  headers: { Authorization: `Bearer ${authToken3}` }
+                });
+                console.log('Events uploaded');
+              } else {
+                console.warn('Skipping events upload because sessionId is null');
+              }
+            } catch (e) {
+              console.warn('Could not upload events/screenshots:', e);
+            }
+
+            try {
+              console.log('Calling onStopRecording with', { sessionId, savedRecordingId, thumbnails });
+              onStopRecording?.(sessionId, savedRecordingId, videoBlob, thumbnails, stepsRef.current);
+            } catch (e) {
+              console.warn('onStopRecording handler threw', e);
+            }
             resolve();
           } catch (error) {
             setErrorMsg("Failed to save recording. Please try again.");

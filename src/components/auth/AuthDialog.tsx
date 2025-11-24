@@ -54,11 +54,28 @@ export const AuthDialog = ({ isOpen, onClose, defaultTab = 'login' }: AuthDialog
       });
 
       const data = await res.json();
+      console.debug('Login response payload:', data);
       if (!res.ok) throw new Error(data?.error || 'Login failed');
 
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('role', data.role);
-      localStorage.setItem('user_id', data.user_id);
+      // support multiple token key names from backend
+      const token = data?.access_token || data?.token || data?.accessToken || (data.access && data.access.token) || data?.jwt;
+      console.debug('Resolved token from login response:', !!token);
+      if (!token) throw new Error('Login succeeded but no token returned');
+
+      localStorage.setItem('token', token);
+      if (data.role) localStorage.setItem('role', data.role);
+      if (data.user_id) localStorage.setItem('user_id', data.user_id);
+
+      // set axios default header for subsequent requests
+      try { 
+        // lazy-load axios to avoid extra bundle churn in this file's top-level imports
+        // but axios is already used in other places; set global header
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const axios = require('axios');
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      } catch (e) {
+        // ignore if axios not available
+      }
 
       onClose();
       navigate('/dashboard');
@@ -85,12 +102,25 @@ export const AuthDialog = ({ isOpen, onClose, defaultTab = 'login' }: AuthDialog
       });
 
       const data = await res.json();
+      console.debug('Signup response payload:', data);
       if (!res.ok) throw new Error(data?.error || 'Signup failed');
 
       // Simulate login after signup
-      localStorage.setItem('token', data.access_token);
+      const token = data?.access_token || data?.token || data?.accessToken || (data.access && data.access.token) || data?.jwt;
+      console.debug('Resolved token from signup response:', !!token);
+      if (!token) throw new Error('Signup succeeded but no token returned');
+
+      localStorage.setItem('token', token);
       localStorage.setItem('role', formData.role);
-      localStorage.setItem('user_id', data.user_id);
+      if (data.user_id) localStorage.setItem('user_id', data.user_id);
+
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const axios = require('axios');
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      } catch (e) {
+        // ignore
+      }
 
       onClose();
       navigate('/dashboard');
@@ -184,7 +214,7 @@ export const AuthDialog = ({ isOpen, onClose, defaultTab = 'login' }: AuthDialog
                   size="lg"
                   className="w-full"
                   onClick={handleLogin}
-                  disabled={isLoading || !formData.email || !formData.password || !formData.role}
+                  disabled={isLoading || !formData.email || !formData.password}
                 >
                   {isLoading ? (
                     <>

@@ -18,6 +18,9 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [lastRecordingId, setLastRecordingId] = useState<string | null>(null);
+  const [lastSessionId, setLastSessionId] = useState<number | string | null>(null);
+  const [lastThumbnails, setLastThumbnails] = useState<string[] | null>(null);
+  const [lastSteps, setLastSteps] = useState<any[] | null>(null);
   const [recentRecordings, setRecentRecordings] = useState<any[]>([]);
   const [recentManuals, setRecentManuals] = useState<any[]>([]);
   const [manualSuccess, setManualSuccess] = useState<boolean>(false);
@@ -28,6 +31,7 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('token');
+        console.debug('[Dashboard] fetchData token present:', !!token, 'len:', token ? token.length : 0);
 
         if (!token) {
           toast({
@@ -44,7 +48,8 @@ const Dashboard = () => {
         let manualsRes: any = null;
 
         try {
-          recordingsRes = await axios.get<any[]>('/api/recordings', {
+          // ensure we explicitly pass Authorization header from localStorage
+          recordingsRes = await axios.get<any[]>('/api/recordings/', {
             headers: { Authorization: `Bearer ${token}` }
           });
           setRecentRecordings(Array.isArray(recordingsRes.data) ? recordingsRes.data : []);
@@ -98,12 +103,25 @@ const Dashboard = () => {
     fetchData();
   }, [navigate, toast]);
 
-  const handleRecordingFinished = (sessionId: number, recordingId: string) => {
-    console.log("Recording finished with session ID:", sessionId, "recording ID:", recordingId);
-    setLastRecordingId(recordingId);
+  const handleRecordingFinished = (sessionId: number | string | null, recordingId: string | null, videoBlob?: Blob | null, thumbnails?: string[], steps?: any[]) => {
+    console.log("Recording finished with session ID:", sessionId, "recording ID:", recordingId, 'thumbs:', thumbnails?.length);
+    setLastRecordingId(recordingId ?? null);
+    setLastSessionId(sessionId ?? null);
+    setLastThumbnails(thumbnails ?? null);
+    setLastSteps(steps ?? null);
   };
 
-  const handleGenerateManual = async (role: string, format: string, recordingIdOverride?: string | null) => {
+  // When a recording finishes we update state so the ManualGenerator UI appears.
+  // Generation is performed only when the user clicks "Generate Manual".
+
+  const handleGenerateManual = async (
+    role: string,
+    format: string,
+    recordingIdOverride?: string | null,
+    sessionId?: number | string | null,
+    thumbnails?: string[] | null,
+    steps?: any[] | null
+  ) => {
     try {
       const token = localStorage.getItem("token");
       
@@ -114,6 +132,42 @@ const Dashboard = () => {
           variant: "destructive"
         });
         navigate('/');
+        return;
+      }
+
+      // prefer session-based generation: use passed sessionId or lastSessionId
+      const effectiveSessionId = sessionId ?? lastSessionId;
+      if (effectiveSessionId) {
+        setLoadingGenerateFor(String(sessionId));
+        const export_format = format.toLowerCase();
+        const payload: any = {
+          export_format,
+          role,
+          session_id: effectiveSessionId,
+          screenshot_files: thumbnails || [],
+        };
+        if (steps) payload.steps = steps;
+
+        const res = await axios.post<{ manual_id: number }>(
+          `/api/manuals/generate/${effectiveSessionId}`,
+          payload,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (res.data?.manual_id) {
+          setGeneratedManualId(res.data.manual_id);
+          setManualSuccess(true);
+          toast({ title: "Success", description: "Manual generated successfully!" });
+          try {
+            const token2 = localStorage.getItem('token');
+            const manualsRes = await axios.get<any[]>('/api/manuals', { headers: { Authorization: `Bearer ${token2}` } });
+            setRecentManuals(Array.isArray(manualsRes.data) ? manualsRes.data : []);
+          } catch (e) {
+            console.warn('Failed to refresh manuals list', e);
+          }
+        }
+
+        setLoadingGenerateFor(null);
         return;
       }
 
@@ -205,6 +259,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-hero">
       <Header isAuthenticated={true} />
+      
       <main className="container mx-auto py-8 space-y-8">
         <div className="text-center space-y-4">
           <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
@@ -259,61 +314,9 @@ const Dashboard = () => {
                 </p>
               )}
 
-              {/* Recent Recordings */}
+              {/* Recent Recordings and Recent Manuals moved to their own pages */}
               <div className="mt-6">
-                <h3 className="font-semibold mb-2">Recent Recordings</h3>
-                {recentRecordings.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No recordings yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {recentRecordings.map((rec: any) => (
-                      <div key={rec.id || rec._id || rec.recording_id} className="p-3 bg-background/60 rounded flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">{rec.title || rec.name || `Recording ${rec.id || rec._id}`}</div>
-                          <div className="text-sm text-muted-foreground">{rec.description || ''}</div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={() => handleDownloadRecording(rec.id || rec._id || rec.recording_id)}>
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" onClick={() => handleShareRecording(rec.id || rec._id || rec.recording_id)}>
-                            <Share2 className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" onClick={() => handleGenerateManual('BA', 'PDF', String(rec.id || rec._id || rec.recording_id))} disabled={loadingGenerateFor === String(rec.id || rec._id || rec.recording_id)}>
-                            {loadingGenerateFor === String(rec.id || rec._id || rec.recording_id) ? 'Generating...' : 'Generate Manual'}
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Recent Manuals */}
-              <div className="mt-6">
-                <h3 className="font-semibold mb-2">Recent Manuals</h3>
-                {recentManuals.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No manuals yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {recentManuals.map((m: any) => (
-                      <div key={m.id || m.manual_id} className="p-3 bg-background/60 rounded flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">{m.title || m.name || `Manual ${m.id || m.manual_id}`}</div>
-                          <div className="text-sm text-muted-foreground">{m.created_at || m.date || ''}</div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={() => window.open(`/api/manuals/download/${m.id || m.manual_id}`, '_blank')}>
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" onClick={() => handleShareManual(m.id || m.manual_id)}>
-                            <Share2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <p className="text-sm text-muted-foreground">Recent Recordings and Manuals are available under the top navigation: <strong>Documentation</strong> and <strong>Recordings</strong>.</p>
               </div>
             </div>
           </div>
