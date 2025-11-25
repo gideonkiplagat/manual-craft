@@ -40,6 +40,7 @@ interface StepPayload {
   event_type: string;
   description: string;
   screenshot?: string;
+  human_label?: string;
 }
 
 export const RecordingInterface = ({ onStartRecording, onStopRecording }: RecordingInterfaceProps) => {
@@ -160,10 +161,31 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
     return el.tagName.toLowerCase();
   };
 
+  // Return a human friendly label for an element (dataset.label, aria-label/title, textContent, fallback)
+  const getHumanLabel = (el: HTMLElement | null, fallback = ''): string => {
+    if (!el) return fallback || '';
+    try {
+      const ds = (el as HTMLElement).dataset;
+      if (ds && (ds as any).label) return String((ds as any).label).trim();
+      const aria = el.getAttribute?.('aria-label') || el.getAttribute?.('title');
+      if (aria) return aria.trim();
+      const text = (el.textContent || '').trim();
+      if (text) return text.replace(/\s+/g, ' ');
+    } catch (e) {
+      // ignore
+    }
+    return fallback || '';
+  };
+
   const captureScreenshot = async (): Promise<string | undefined> => {
+    // NOTE: This screenshot capture only works reliably while the FlowToManual tab is active.
+    // For cross-tab or other-application recording (when the user switches tabs or apps),
+    // browsers throttle timers and rendering; the backend should extract screenshots
+    // directly from the recorded video (ffmpeg or similar). Do not rely on client-side
+    // time-based captures for cross-tab behavior.
     try {
       const now = Date.now();
-      if (now - lastScreenshotAtRef.current < 800) return undefined;
+      if (now - lastScreenshotAtRef.current < 200) return undefined;
       lastScreenshotAtRef.current = now;
 
       const stream = activeStreamRef.current;
@@ -201,16 +223,48 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
     }
   };
 
+  // Convert dataURL (base64) to Blob
+  const dataURLToBlob = (dataUrl: string) => {
+    const arr = dataUrl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  };
+
+  // Upload a base64 screenshot as PNG and return the server path/url
+  const uploadScreenshot = async (sessionId: string | number, dataUrl: string, authToken?: string) => {
+    try {
+      const blob = dataURLToBlob(dataUrl);
+      const fd = new FormData();
+      fd.append('file', blob, `screenshot-${Date.now()}.png`);
+      const headers: Record<string,string> = {};
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      const res = await axios.post(`/api/sessions/${sessionId}/upload-screenshot`, fd, { headers });
+      return (res as any)?.data?.path || (res as any)?.data?.url || null;
+    } catch (e) {
+      console.warn('uploadScreenshot failed', e);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const handleEvent = (e: Event) => {
       const target = e.target as HTMLElement;
       const selector = getElementSelector(target);
 
+      const humanLabel = getHumanLabel(target, (target as HTMLInputElement)?.value || selector);
+
       const eventData: DomEvent = {
         type: e.type,
         timestamp: new Date().toISOString(),
         selector,
-        value: (target as HTMLInputElement)?.value || undefined,
+        value: humanLabel || undefined,
         ...(e.type === 'keydown' ? { key: (e as KeyboardEvent).key } : {})
       };
 
@@ -246,8 +300,22 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
           timestamp: Date.now(),
           event_type: eventData.type,
           description: desc,
-          screenshot
+          screenshot,
+          human_label: humanLabel || ''
         });
+
+      // synthetic navigation for menu-like targets: pages, nav items, menu items
+      try {
+        const role = target.getAttribute?.('role');
+        const cls = target.className || '';
+        const isMenu = role === 'menuitem' || /menu-item|menu__item|nav-item|tab|sidebar|nav/.test(cls) || !!target.dataset?.navLabel;
+        if (isMenu) {
+          const navLabel = (target.dataset && (target as any).dataset.navLabel) || humanLabel || selector;
+          document.dispatchEvent(new CustomEvent('navigation', { detail: { label: navLabel } }));
+        }
+      } catch (e) {
+        // ignore
+      }
       })();
     };
 
@@ -288,8 +356,11 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
         return;
       }
 
+      // Hint to the browser that we prefer capturing the entire monitor.
+      // NOTE: This is a hint only — the user chooses in the browser prompt.
+      // @ts-ignore - `displaySurface` is not in all TS libs yet
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: { ideal: 30, max: 30 }, width: 1920, height: 1080 },
+        video: ({ frameRate: { ideal: 30, max: 30 }, width: 1920, height: 1080, displaySurface: 'monitor' } as any),
         audio: recordSettings.audio
       });
 
@@ -493,6 +564,23 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
               if (sessionId) {
                 const authToken3 = authToken2;
                 console.log('Uploading events to session', sessionId, mapped.length);
+
+                // Upload embedded base64 screenshots and replace with screenshot_path
+                for (const m of mapped) {
+                  try {
+                    const s = (m as any).screenshot;
+                    if (s && typeof s === 'string' && s.startsWith('data:')) {
+                      const path = await uploadScreenshot(sessionId, s, authToken3!);
+                      if (path) {
+                        (m as any).screenshot_path = path;
+                        delete (m as any).screenshot;
+                      }
+                    }
+                  } catch (upErr) {
+                    console.warn('Uploading step screenshot failed', upErr);
+                  }
+                }
+
                 await axios.post(`/api/sessions/${sessionId}/events`, { events: mapped }, {
                   headers: { Authorization: `Bearer ${authToken3}` }
                 });
@@ -580,6 +668,12 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
             <Settings className="h-4 w-4" /> Settings
           </Button>
         </div>
+
+        <p className="mt-2 text-sm text-muted-foreground">
+          Tip: Choose "Entire screen" in the browser prompt to capture actions across other
+          tabs and applications. The backend will extract additional screenshots from the
+          recorded video for cross-tab/app captures.
+        </p>
 
         {errorMsg && (
           <p className="mt-3 text-sm text-red-500">{errorMsg}</p>
