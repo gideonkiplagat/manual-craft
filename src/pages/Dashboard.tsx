@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Header } from '@/components/layout/Header';
 import { RecordingInterface } from '@/components/dashboard/RecordingInterface';
 import ManualGenerator from '@/components/dashboard/ManualGenerator';
-import { FileText, Download, Share2 } from 'lucide-react';
+import { FileText, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -103,7 +103,13 @@ const Dashboard = () => {
     fetchData();
   }, [navigate, toast]);
 
-  const handleRecordingFinished = (sessionId: number | string | null, recordingId: string | null, videoBlob?: Blob | null, thumbnails?: string[], steps?: any[]) => {
+  const handleRecordingFinished = (
+    sessionId: number | string | null,
+    recordingId: string | null,
+    videoBlob?: Blob | null,
+    thumbnails?: string[],
+    steps?: any[]
+  ) => {
     console.log("Recording finished with session ID:", sessionId, "recording ID:", recordingId, 'thumbs:', thumbnails?.length);
     setLastRecordingId(recordingId ?? null);
     setLastSessionId(sessionId ?? null);
@@ -117,6 +123,7 @@ const Dashboard = () => {
   const handleGenerateManual = async (
     role: string,
     format: string,
+    includeScreenshots: boolean,
     recordingIdOverride?: string | null,
     sessionId?: number | string | null,
     thumbnails?: string[] | null,
@@ -138,19 +145,13 @@ const Dashboard = () => {
       // prefer session-based generation: use passed sessionId or lastSessionId
       const effectiveSessionId = sessionId ?? lastSessionId;
       if (effectiveSessionId) {
-        setLoadingGenerateFor(String(sessionId));
+        setLoadingGenerateFor(String(effectiveSessionId));
         const export_format = format.toLowerCase();
-        const payload: any = {
-          export_format,
-          role,
-          session_id: effectiveSessionId,
-          screenshot_files: thumbnails || [],
-        };
-        if (steps) payload.steps = steps;
 
+        const url = `/api/manuals/generate/${effectiveSessionId}?format=${export_format}&include_screenshots=${includeScreenshots}`;
         const res = await axios.post<{ manual_id: number }>(
-          `/api/manuals/generate/${effectiveSessionId}`,
-          payload,
+          url,
+          {}, // no JSON body needed; backend uses session + video + SessionStep timestamps
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
@@ -171,6 +172,7 @@ const Dashboard = () => {
         return;
       }
 
+      // Fallback: recording-based endpoint if we don't have a session id
       const targetRecordingId = recordingIdOverride || lastRecordingId;
       if (!targetRecordingId) {
         toast({ title: 'Error', description: 'No recording selected to generate manual from', variant: 'destructive' });
@@ -180,7 +182,7 @@ const Dashboard = () => {
       setLoadingGenerateFor(String(targetRecordingId));
 
       const res = await axios.post<{ manual_id: number }>(
-        `/api/manuals/generate/recording/${targetRecordingId}?format=${format.toLowerCase()}`,
+        `/api/manuals/generate/recording/${targetRecordingId}?format=${format.toLowerCase()}&include_screenshots=${includeScreenshots}`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -316,7 +318,9 @@ const Dashboard = () => {
 
               {/* Recent Recordings and Recent Manuals moved to their own pages */}
               <div className="mt-6">
-                <p className="text-sm text-muted-foreground">Recent Recordings and Manuals are available under the top navigation: <strong>Documentation</strong> and <strong>Recordings</strong>.</p>
+                <p className="text-sm text-muted-foreground">
+                  Recent Recordings and Manuals are available under the top navigation: <strong>Documentation</strong> and <strong>Recordings</strong>.
+                </p>
               </div>
             </div>
           </div>

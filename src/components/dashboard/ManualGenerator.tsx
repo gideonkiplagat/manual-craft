@@ -14,7 +14,7 @@ import { Card } from '@/components/ui/card';
 
 interface ManualGeneratorProps {
   recordingId?: string;
-  onGenerateManual?: (role: string, format: string) => Promise<void> | void;
+  onGenerateManual?: (role: string, format: string, includeScreenshots: boolean) => Promise<void> | void;
 }
 
 const roles = [
@@ -52,7 +52,7 @@ const ManualGenerator: React.FC<ManualGeneratorProps> = ({ recordingId, onGenera
   const [generating, setGenerating] = useState<boolean>(false);
 
   const handleGenerate = async () => {
-    if (!resolvedRecordingId) {
+    if (!resolvedRecordingId && !onGenerateManual) {
       setStatusMessage('❌ Recording ID is missing.');
       return;
     }
@@ -62,19 +62,22 @@ const ManualGenerator: React.FC<ManualGeneratorProps> = ({ recordingId, onGenera
 
     try {
       if (onGenerateManual) {
-        await onGenerateManual(role, format);
+        await onGenerateManual(role, format, includeScreenshots);
         setStatusMessage('✅ Manual generated successfully.');
       } else {
         const token = localStorage.getItem("token");
         const exportFormat = format.toLowerCase();
 
         // ✅ Updated to use /recording/ endpoint that accepts recording_id
-        const res = await fetch(`/api/manuals/generate/recording/${resolvedRecordingId}?format=${exportFormat}&include_screenshots=${includeScreenshots}`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`
+        const res = await fetch(
+          `/api/manuals/generate/recording/${resolvedRecordingId}?format=${exportFormat}&include_screenshots=${includeScreenshots}`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
           }
-        });
+        );
 
         if (!res.ok) {
           const errorData = await res.json();
@@ -85,8 +88,6 @@ const ManualGenerator: React.FC<ManualGeneratorProps> = ({ recordingId, onGenera
         const contentDisposition = res.headers.get('Content-Disposition');
         const filenameMatch = contentDisposition?.match(/filename="?(.+)"?/);
         const filename = filenameMatch ? filenameMatch[1] : `manual.${exportFormat}`;
-        
-
 
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -140,6 +141,7 @@ const ManualGenerator: React.FC<ManualGeneratorProps> = ({ recordingId, onGenera
           </SelectContent>
         </Select>
       </div>
+
       <div>
         <Label>Include Screenshots</Label>
         <input
