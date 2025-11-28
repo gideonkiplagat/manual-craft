@@ -31,70 +31,73 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('token');
-        console.debug('[Dashboard] fetchData token present:', !!token, 'len:', token ? token.length : 0);
+        console.debug(
+          '[Dashboard] fetchData token present:',
+          !!token,
+          'len:',
+          token ? token.length : 0
+        );
 
         if (!token) {
           toast({
-            title: "Authentication Required",
-            description: "Please log in to access the dashboard.",
-            variant: "destructive"
+            title: 'Authentication Required',
+            description: 'Please log in to access the dashboard.',
+            variant: 'destructive',
           });
           navigate('/');
           return;
         }
 
-        // fetch recordings and manuals. Some backends may not expose a recordings-list endpoint yet.
+        // fetch recordings and manuals
         let recordingsRes: any = null;
         let manualsRes: any = null;
 
         try {
-          // ensure we explicitly pass Authorization header from localStorage
           recordingsRes = await axios.get<any[]>('/api/recordings/', {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
           });
           setRecentRecordings(Array.isArray(recordingsRes.data) ? recordingsRes.data : []);
         } catch (recErr: any) {
-          // If endpoint is missing (404) or not allowed (405) treat as empty list; otherwise present error
-          console.warn('Could not load recordings list', recErr?.response?.status || recErr.message);
+          console.warn(
+            'Could not load recordings list',
+            recErr?.response?.status || recErr.message
+          );
           const status = recErr.response?.status;
           if (status === 404 || status === 405) {
             setRecentRecordings([]);
           } else if (status === 401) {
-            throw recErr; // let outer catch handle auth
+            throw recErr;
           } else {
-            // non-auth error - show empty and continue
             setRecentRecordings([]);
           }
         }
 
         try {
           manualsRes = await axios.get<any[]>('/api/manuals/', {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
           });
           setRecentManuals(Array.isArray(manualsRes.data) ? manualsRes.data : []);
         } catch (manErr: any) {
-          // If unauthorized, throw to outer handler to redirect to login
           if (manErr.response?.status === 401) throw manErr;
           console.warn('Could not load manuals list', manErr?.response?.status || manErr.message);
           setRecentManuals([]);
         }
       } catch (error: any) {
         console.error('Failed to fetch recent activity', error);
-        
-        // Handle authentication errors
-        if (error.response?.status === 401 || error.response?.data?.error === "Invalid user ID") {
+
+        if (error.response?.status === 401 || error.response?.data?.error === 'Invalid user ID') {
           localStorage.removeItem('token');
           toast({
-            title: "Session Expired",
-            description: "Your session has expired. Please log in again.",
-            variant: "destructive"
+            title: 'Session Expired',
+            description: 'Your session has expired. Please log in again.',
+            variant: 'destructive',
           });
           navigate('/');
         } else {
           toast({
-            title: "Error",
-            description: "Failed to load dashboard data.",
-            variant: "destructive"
+            title: 'Error',
+            description: 'Failed to load dashboard data.',
+            variant: 'destructive',
           });
         }
       }
@@ -110,40 +113,42 @@ const Dashboard = () => {
     thumbnails?: string[],
     steps?: any[]
   ) => {
-    console.log("Recording finished with session ID:", sessionId, "recording ID:", recordingId, 'thumbs:', thumbnails?.length);
+    console.log(
+      'Recording finished with session ID:',
+      sessionId,
+      'recording ID:',
+      recordingId,
+      'thumbs:',
+      thumbnails?.length
+    );
     setLastRecordingId(recordingId ?? null);
     setLastSessionId(sessionId ?? null);
     setLastThumbnails(thumbnails ?? null);
     setLastSteps(steps ?? null);
   };
 
-  // When a recording finishes we update state so the ManualGenerator UI appears.
-  // Generation is performed only when the user clicks "Generate Manual".
-
   const handleGenerateManual = async (
     role: string,
     format: string,
     includeScreenshots: boolean,
-    recordingIdOverride?: string | null,
-    sessionId?: number | string | null,
-    thumbnails?: string[] | null,
-    steps?: any[] | null
+    _recordingIdOverride?: string | null,
+    _sessionIdOverride?: number | string | null
   ) => {
     try {
-      const token = localStorage.getItem("token");
-      
+      const token = localStorage.getItem('token');
+
       if (!token) {
         toast({
-          title: "Authentication Required",
-          description: "Please log in to generate a manual.",
-          variant: "destructive"
+          title: 'Authentication Required',
+          description: 'Please log in to generate a manual.',
+          variant: 'destructive',
         });
         navigate('/');
         return;
       }
 
-      // prefer session-based generation: use passed sessionId or lastSessionId
-      const effectiveSessionId = sessionId ?? lastSessionId;
+      // ✅ Prefer session-based generation
+      const effectiveSessionId = _sessionIdOverride ?? lastSessionId;
       if (effectiveSessionId) {
         setLoadingGenerateFor(String(effectiveSessionId));
         const export_format = format.toLowerCase();
@@ -151,17 +156,19 @@ const Dashboard = () => {
         const url = `/api/manuals/generate/${effectiveSessionId}?format=${export_format}&include_screenshots=${includeScreenshots}`;
         const res = await axios.post<{ manual_id: number }>(
           url,
-          {}, // no JSON body needed; backend uses session + video + SessionStep timestamps
+          {},
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
         if (res.data?.manual_id) {
           setGeneratedManualId(res.data.manual_id);
           setManualSuccess(true);
-          toast({ title: "Success", description: "Manual generated successfully!" });
+          toast({ title: 'Success', description: 'Manual generated successfully!' });
+
           try {
-            const token2 = localStorage.getItem('token');
-            const manualsRes = await axios.get<any[]>('/api/manuals', { headers: { Authorization: `Bearer ${token2}` } });
+            const manualsRes = await axios.get<any[]>('/api/manuals/', {
+              headers: { Authorization: `Bearer ${token}` },
+            });
             setRecentManuals(Array.isArray(manualsRes.data) ? manualsRes.data : []);
           } catch (e) {
             console.warn('Failed to refresh manuals list', e);
@@ -172,10 +179,14 @@ const Dashboard = () => {
         return;
       }
 
-      // Fallback: recording-based endpoint if we don't have a session id
-      const targetRecordingId = recordingIdOverride || lastRecordingId;
+      // Fallback: recording-based endpoint if somehow no session is available
+      const targetRecordingId = _recordingIdOverride || lastRecordingId;
       if (!targetRecordingId) {
-        toast({ title: 'Error', description: 'No recording selected to generate manual from', variant: 'destructive' });
+        toast({
+          title: 'Error',
+          description: 'No recording selected to generate manual from',
+          variant: 'destructive',
+        });
         return;
       }
 
@@ -185,40 +196,39 @@ const Dashboard = () => {
         `/api/manuals/generate/recording/${targetRecordingId}?format=${format.toLowerCase()}&include_screenshots=${includeScreenshots}`,
         {},
         {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
-      // assuming backend returns { manual_id: number }
       if (res.data?.manual_id) {
         setGeneratedManualId(res.data.manual_id);
         setManualSuccess(true);
-        toast({ title: "Success", description: "Manual generated successfully!" });
-        // refresh manuals list
+        toast({ title: 'Success', description: 'Manual generated successfully!' });
         try {
-          const token2 = localStorage.getItem('token');
-          const manualsRes = await axios.get<any[]>('/api/manuals', { headers: { Authorization: `Bearer ${token2}` } });
+          const manualsRes = await axios.get<any[]>('/api/manuals/', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
           setRecentManuals(Array.isArray(manualsRes.data) ? manualsRes.data : []);
         } catch (e) {
           console.warn('Failed to refresh manuals list', e);
         }
       }
     } catch (err: any) {
-      console.error("Error generating manual:", err);
-      
-      if (err.response?.status === 401 || err.response?.data?.error === "Invalid user ID") {
+      console.error('Error generating manual:', err);
+
+      if (err.response?.status === 401 || err.response?.data?.error === 'Invalid user ID') {
         localStorage.removeItem('token');
         toast({
-          title: "Session Expired",
-          description: "Your session has expired. Please log in again.",
-          variant: "destructive"
+          title: 'Session Expired',
+          description: 'Your session has expired. Please log in again.',
+          variant: 'destructive',
         });
         navigate('/');
       } else {
         toast({
-          title: "Error",
-          description: err.response?.data?.error || "Failed to generate manual.",
-          variant: "destructive"
+          title: 'Error',
+          description: err.response?.data?.error || 'Failed to generate manual.',
+          variant: 'destructive',
         });
       }
     } finally {
@@ -228,9 +238,9 @@ const Dashboard = () => {
 
   const handleDownloadManual = () => {
     if (!generatedManualId) return;
-    const token = localStorage.getItem("token");
-    console.log("Downloading manual with ID:", generatedManualId);
-    window.open(`/api/manuals/download/${generatedManualId}?token=${token}`, "_blank");
+    const token = localStorage.getItem('token');
+    console.log('Downloading manual with ID:', generatedManualId);
+    window.open(`/api/manuals/download/${generatedManualId}?token=${token}`, '_blank');
   };
 
   const handleDownloadRecording = (recordingId: string) => {
@@ -242,9 +252,16 @@ const Dashboard = () => {
     try {
       const url = `${window.location.origin}/api/recordings/download/${recordingId}`;
       await navigator.clipboard.writeText(url);
-      toast({ title: 'Link copied', description: 'Recording download link copied to clipboard.' });
+      toast({
+        title: 'Link copied',
+        description: 'Recording download link copied to clipboard.',
+      });
     } catch (e) {
-      toast({ title: 'Error', description: 'Could not copy link to clipboard.', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: 'Could not copy link to clipboard.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -254,21 +271,26 @@ const Dashboard = () => {
       await navigator.clipboard.writeText(url);
       toast({ title: 'Link copied', description: 'Manual download link copied to clipboard.' });
     } catch (e) {
-      toast({ title: 'Error', description: 'Could not copy link to clipboard.', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: 'Could not copy link to clipboard.',
+        variant: 'destructive',
+      });
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-hero">
       <Header isAuthenticated={true} />
-      
+
       <main className="container mx-auto py-8 space-y-8">
         <div className="text-center space-y-4">
           <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             Welcome Back!
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Record your workflows and transform them into intelligent documentation with AI-powered insights.
+            Record your workflows and transform them into intelligent documentation with AI-powered
+            insights.
           </p>
         </div>
 
@@ -289,6 +311,7 @@ const Dashboard = () => {
                 <FileText className="h-5 w-5 text-primary" />
                 Generate Manual
               </h2>
+
               {lastRecordingId !== null ? (
                 <>
                   <ManualGenerator
@@ -316,10 +339,11 @@ const Dashboard = () => {
                 </p>
               )}
 
-              {/* Recent Recordings and Recent Manuals moved to their own pages */}
+              {/* ✅ This block preserved exactly as you wrote it */}
               <div className="mt-6">
                 <p className="text-sm text-muted-foreground">
-                  Recent Recordings and Manuals are available under the top navigation: <strong>Documentation</strong> and <strong>Recordings</strong>.
+                  Recent Recordings and Manuals are available under the top navigation:{' '}
+                  <strong>Documentation</strong> and <strong>Recordings</strong>.
                 </p>
               </div>
             </div>

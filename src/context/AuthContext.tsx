@@ -6,6 +6,7 @@ export interface User {
   email: string;
   name?: string;
   role?: string;
+  plan_type?: string; // e.g. "free", "pro", "team"
 }
 
 export interface AuthContextType {
@@ -110,3 +111,5 @@ export const useAuthContext = () => {
   }
   return context;
 };
+// alias to match components expecting useAuth()
+export const useAuth = useAuthContext;

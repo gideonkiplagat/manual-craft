@@ -14,94 +14,59 @@ import { Card } from '@/components/ui/card';
 
 interface ManualGeneratorProps {
   recordingId?: string;
-  onGenerateManual?: (role: string, format: string, includeScreenshots: boolean) => Promise<void> | void;
+  sessionId?: number | string | null;
+  onGenerateManual?: (
+    role: string,
+    format: string,
+    includeScreenshots: boolean,
+    recordingIdOverride?: string | null,
+    sessionId?: number | string | null
+  ) => Promise<void> | void;
 }
 
 const roles = [
-  {
-    value: 'BA',
-    label: 'Business Analyst',
-    description: 'Use-case-oriented guides and business rules'
-  },
-  {
-    value: 'QA',
-    label: 'Quality Engineer',
-    description: 'Test steps, validations, and assertions'
-  },
-  {
-    value: 'Developer',
-    label: 'Developer',
-    description: 'Technical flow and system-level documentation'
-  }
+  { value: 'BA', label: 'Business Analyst' },
+  { value: 'QA', label: 'Quality Engineer' },
+  { value: 'Developer', label: 'Developer' }
 ];
 
 const formats = [
   { value: 'PDF', label: 'PDF 📄' },
-  { value: 'Docx', label: 'word 📝' },
+  { value: 'Docx', label: 'Word 📝' },
   { value: 'Excel', label: 'Excel 📊' }
 ];
 
-const ManualGenerator: React.FC<ManualGeneratorProps> = ({ recordingId, onGenerateManual }) => {
+const ManualGenerator: React.FC<ManualGeneratorProps> = ({
+  recordingId,
+  sessionId,
+  onGenerateManual
+}) => {
   const { id: routeRecordingId } = useParams<{ id: string }>();
   const resolvedRecordingId = recordingId || routeRecordingId;
 
   const [role, setRole] = useState<string>('BA');
   const [format, setFormat] = useState<string>('PDF');
-  const [includeScreenshots, setIncludeScreenshots] = useState(true);
+  const [includeScreenshots, setIncludeScreenshots] = useState<boolean>(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [generating, setGenerating] = useState<boolean>(false);
 
   const handleGenerate = async () => {
-    if (!resolvedRecordingId && !onGenerateManual) {
-      setStatusMessage('❌ Recording ID is missing.');
-      return;
-    }
-
     setGenerating(true);
     setStatusMessage(null);
 
     try {
       if (onGenerateManual) {
-        await onGenerateManual(role, format, includeScreenshots);
-        setStatusMessage('✅ Manual generated successfully.');
-      } else {
-        const token = localStorage.getItem("token");
-        const exportFormat = format.toLowerCase();
-
-        // ✅ Updated to use /recording/ endpoint that accepts recording_id
-        const res = await fetch(
-          `/api/manuals/generate/recording/${resolvedRecordingId}?format=${exportFormat}&include_screenshots=${includeScreenshots}`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          }
+        await onGenerateManual(
+          role,
+          format,
+          includeScreenshots,
+          resolvedRecordingId || null,
+          sessionId || null
         );
-
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData?.error || 'Failed to generate manual');
-        }
-
-        const blob = await res.blob();
-        const contentDisposition = res.headers.get('Content-Disposition');
-        const filenameMatch = contentDisposition?.match(/filename="?(.+)"?/);
-        const filename = filenameMatch ? filenameMatch[1] : `manual.${exportFormat}`;
-
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-
-        setStatusMessage(`✅ Manual downloaded: ${filename}`);
+        setStatusMessage('✅ Manual generated successfully.');
       }
-    } catch (error) {
-      console.error('Error generating manual:', error);
+    } catch (e) {
+      console.error('Error generating manual:', e);
       setStatusMessage('❌ Failed to generate manual.');
     } finally {
       setGenerating(false);

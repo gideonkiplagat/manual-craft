@@ -12,9 +12,7 @@ export default function Sessions() {
     queryFn: async () => {
       const token = localStorage.getItem("token");
       const res = await fetch("/api/recordings", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to load sessions");
       return res.json();
@@ -53,6 +51,7 @@ export default function Sessions() {
                   <FileText className="w-4 h-4 mr-1" />
                   Generate
                 </Button>
+
                 <Button size="sm" variant="ghost">
                   <Trash2 className="w-4 h-4" />
                 </Button>
