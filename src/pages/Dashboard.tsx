@@ -1,10 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Header } from '@/components/layout/Header';
 import { RecordingInterface } from '@/components/dashboard/RecordingInterface';
 import ManualGenerator from '@/components/dashboard/ManualGenerator';
-import { FileText, Download } from 'lucide-react';
+import {
+  FileText,
+  Download,
+  Video,
+  BookOpen,
+  Sparkles,
+  BarChart3,
+  PlayCircle,
+  BookOpenCheck,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -17,6 +26,7 @@ interface ManualResponse {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const [lastRecordingId, setLastRecordingId] = useState<string | null>(null);
   const [lastSessionId, setLastSessionId] = useState<number | string | null>(null);
   const [lastThumbnails, setLastThumbnails] = useState<string[] | null>(null);
@@ -26,7 +36,12 @@ const Dashboard = () => {
   const [manualSuccess, setManualSuccess] = useState<boolean>(false);
   const [generatedManualId, setGeneratedManualId] = useState<number | null>(null);
   const [loadingGenerateFor, setLoadingGenerateFor] = useState<string | null>(null);
+  const [stats, setStats] = useState<any | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
 
+  // -------------------------------------------------------------------
+  // FETCH DATA (unchanged logic, just formatted)
+  // -------------------------------------------------------------------
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -63,10 +78,14 @@ const Dashboard = () => {
             recErr?.response?.status || recErr.message
           );
           const status = recErr.response?.status;
+
           if (status === 404 || status === 405) {
             setRecentRecordings([]);
           } else if (status === 401) {
-            throw recErr;
+            // Token expired or missing → logout user safely
+            localStorage.removeItem('token');
+            window.location.href = '/login'; // or trigger your AuthDialog
+            return;
           } else {
             setRecentRecordings([]);
           }
@@ -79,13 +98,45 @@ const Dashboard = () => {
           setRecentManuals(Array.isArray(manualsRes.data) ? manualsRes.data : []);
         } catch (manErr: any) {
           if (manErr.response?.status === 401) throw manErr;
-          console.warn('Could not load manuals list', manErr?.response?.status || manErr.message);
+          console.warn(
+            'Could not load manuals list',
+            manErr?.response?.status || manErr.message
+          );
           setRecentManuals([]);
+        }
+
+        // Fetch dashboard statistics
+        try {
+          const statsRes = await axios.get('/api/dashboard/stats', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          setStats(statsRes.data);
+        } catch (statsErr: any) {
+          console.warn(
+            'Failed to load dashboard stats',
+            statsErr?.response?.status || statsErr.message
+          );
+        }
+
+        // Fetch user profile
+        try {
+          const profileRes = await axios.get('/api/user/profile', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          setProfile(profileRes.data);
+        } catch (profileErr: any) {
+          console.warn(
+            'Failed to load user profile',
+            profileErr?.response?.status || profileErr.message
+          );
         }
       } catch (error: any) {
         console.error('Failed to fetch recent activity', error);
 
-        if (error.response?.status === 401 || error.response?.data?.error === 'Invalid user ID') {
+        if (
+          error.response?.status === 401 ||
+          error.response?.data?.error === 'Invalid user ID'
+        ) {
           localStorage.removeItem('token');
           toast({
             title: 'Session Expired',
@@ -106,6 +157,9 @@ const Dashboard = () => {
     fetchData();
   }, [navigate, toast]);
 
+  // -------------------------------------------------------------------
+  // HANDLERS (all logic unchanged)
+  // -------------------------------------------------------------------
   const handleRecordingFinished = (
     sessionId: number | string | null,
     recordingId: string | null,
@@ -269,7 +323,10 @@ const Dashboard = () => {
     try {
       const url = `${window.location.origin}/api/manuals/download/${manualId}`;
       await navigator.clipboard.writeText(url);
-      toast({ title: 'Link copied', description: 'Manual download link copied to clipboard.' });
+      toast({
+        title: 'Link copied',
+        description: 'Manual download link copied to clipboard.',
+      });
     } catch (e) {
       toast({
         title: 'Error',
@@ -279,34 +336,150 @@ const Dashboard = () => {
     }
   };
 
+  // -------------------------------------------------------------------
+  // DERIVED UI DATA (purely frontend)
+  // -------------------------------------------------------------------
+  const lastRecording = recentRecordings?.[0] || null;
+  const lastManual = recentManuals?.[0] || null;
+
+  // Simple “trend” data for last few items
+  const activityTrend = useMemo(() => {
+    const recCount = recentRecordings.length;
+    const manCount = recentManuals.length;
+    if (!recCount && !manCount) return null;
+
+    return {
+      recordings: recCount,
+      manuals: manCount,
+      message:
+        recCount > manCount
+          ? 'You are capturing more workflows than you are documenting — great for building a knowledge base.'
+          : 'You are generating manuals actively — your org is becoming more documented and auditable.',
+    };
+  }, [recentRecordings, recentManuals]);
+
   return (
-    <div className="min-h-screen bg-gradient-hero">
-      <Header isAuthenticated={true} />
+    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-white to-purple-50">
+      <Header isAuthenticated={true} profile={profile} />
 
-      <main className="container mx-auto py-8 space-y-8">
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-            Welcome Back!
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Record your workflows and transform them into intelligent documentation with AI-powered
-            insights.
-          </p>
-        </div>
+      <main className="container mx-auto py-10 px-4 space-y-10">
+        {/* ------------------------------------------------------------------ */}
+        {/* WELCOME + QUICK ACTIONS                                           */}
+        {/* ------------------------------------------------------------------ */}
+        <section className="space-y-6">
+          <div className="text-center space-y-4">
+            <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent drop-shadow-sm">
+              Welcome Back{profile?.first_name ? `, ${profile.first_name}` : ''}!
+            </h1>
+            <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
+              Record your workflows and transform them into intelligent documentation with AI-powered
+              insights.
+            </p>
+          </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            <div>
+          {/* Quick actions */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Button
+              className="rounded-full px-5 shadow-md bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90"
+              onClick={() => {
+                const el = document.getElementById('record-session');
+                el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            >
+              <PlayCircle className="h-4 w-4 mr-2" />
+              Start New Recording
+            </Button>
+
+            <Button
+              variant="outline"
+              className="rounded-full px-5 border-purple-200 hover:bg-purple-50"
+              onClick={() => {
+                const el = document.getElementById('generate-manual');
+                el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Generate Manual
+            </Button>
+
+            <Button
+              variant="ghost"
+              className="rounded-full px-5 hover:bg-white/60"
+              onClick={() => navigate('/documentation')}
+            >
+              <BookOpen className="h-4 w-4 mr-2" />
+              View Documentation
+            </Button>
+          </div>
+        </section>
+
+        {/* ------------------------------------------------------------------ */}
+        {/* STATS CARDS                                                       */}
+        {/* ------------------------------------------------------------------ */}
+        {stats && profile && (
+          <section className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                label: 'Your Role',
+                value: profile.role,
+                sub: `Plan: ${profile.plan}`,
+                icon: BookOpenCheck,
+                accent: 'from-purple-500/10 to-purple-500/5',
+              },
+              {
+                label: 'Total Recordings',
+                value: stats.recordings.total,
+                sub: stats.recordings.last_recording_at || 'No recordings yet',
+                icon: Video,
+                accent: 'from-blue-500/10 to-blue-500/5',
+              },
+              {
+                label: 'Manuals Generated',
+                value: stats.manuals.total,
+                sub: stats.manuals.last_manual_at || 'No manuals yet',
+                icon: FileText,
+                accent: 'from-emerald-500/10 to-emerald-500/5',
+              },
+            ].map((item, idx) => (
+              <div
+                key={idx}
+                className={`p-6 rounded-2xl bg-gradient-to-br ${item.accent} backdrop-blur shadow-lg border border-white/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <item.icon className="h-5 w-5 text-purple-600" />
+                    <h3 className="font-semibold text-sm text-gray-700">{item.label}</h3>
+                  </div>
+                  <Sparkles className="h-4 w-4 text-purple-400" />
+                </div>
+                <p className="text-3xl font-extrabold tracking-tight">{item.value}</p>
+                <p className="text-xs text-gray-500 mt-1">{item.sub}</p>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* ------------------------------------------------------------------ */}
+        {/* MAIN GRID: RECORD + GENERATE                                      */}
+        {/* ------------------------------------------------------------------ */}
+        <section className="grid lg:grid-cols-2 gap-10 items-start">
+          {/* Record Session */}
+          <div id="record-session" className="space-y-6">
+            <div className="rounded-3xl p-6 bg-white/70 shadow-lg border border-white/70 backdrop-blur hover:shadow-xl transition-all duration-200">
               <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-recording animate-pulse"></div>
-                Record Session
+                <span className="inline-flex h-2 w-2 rounded-full bg-recording animate-pulse" />
+                <span className="flex items-center gap-2">
+                  <Video className="h-5 w-5 text-purple-600" />
+                  Record Session
+                </span>
               </h2>
               <RecordingInterface onStopRecording={handleRecordingFinished} />
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div>
+          {/* Generate Manual */}
+          <div id="generate-manual" className="space-y-6">
+            <div className="rounded-3xl p-6 bg-white/70 shadow-lg border border-white/70 backdrop-blur hover:shadow-xl transition-all duration-200">
               <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
                 <FileText className="h-5 w-5 text-primary" />
                 Generate Manual
@@ -339,7 +512,6 @@ const Dashboard = () => {
                 </p>
               )}
 
-              {/* ✅ This block preserved exactly as you wrote it */}
               <div className="mt-6">
                 <p className="text-sm text-muted-foreground">
                   Recent Recordings and Manuals are available under the top navigation:{' '}
@@ -348,7 +520,119 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-        </div>
+        </section>
+
+        {/* ------------------------------------------------------------------ */}
+        {/* RECENT ACTIVITY + SIMPLE "CHART" TREND                             */}
+        {/* ------------------------------------------------------------------ */}
+        <section className="grid lg:grid-cols-2 gap-10">
+          {/* Recent activity cards */}
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide">
+              <BarChart3 className="h-4 w-4 text-purple-600" />
+              Recent Activity
+            </h3>
+
+            <div className="space-y-3">
+              <div className="rounded-2xl p-4 bg-white/80 shadow border border-white/70 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-500">Last Recording</p>
+                  <p className="text-sm font-medium">
+                    {lastRecording ? lastRecording.title || `Recording ${lastRecording.id}` : 'No recordings yet'}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {lastRecording?.created_at || 'Once you record, it will appear here.'}
+                  </p>
+                </div>
+                {lastRecording && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs"
+                    onClick={() => handleDownloadRecording(lastRecording.id)}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Download
+                  </Button>
+                )}
+              </div>
+
+              <div className="rounded-2xl p-4 bg-white/80 shadow border border-white/70 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-500">Last Manual</p>
+                  <p className="text-sm font-medium">
+                    {lastManual ? lastManual.filename || `Manual ${lastManual.id}` : 'No manuals yet'}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {lastManual?.created_at || 'Generate a manual to see it here.'}
+                  </p>
+                </div>
+                {lastManual && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs"
+                    onClick={() => handleShareManual(lastManual.id)}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Download
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Simple “trend” visualization + insight */}
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide">
+              <Sparkles className="h-4 w-4 text-purple-600" />
+              Insights
+            </h3>
+
+            <div className="rounded-2xl p-4 bg-white/80 shadow border border-white/70 space-y-4">
+              {activityTrend ? (
+                <>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span>Recordings</span>
+                        <span>{activityTrend.recordings}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500"
+                          style={{ width: `${Math.min(activityTrend.recordings * 12, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span>Manuals</span>
+                        <span>{activityTrend.manuals}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500"
+                          style={{ width: `${Math.min(activityTrend.manuals * 12, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-500 mt-3 leading-relaxed">
+                    {activityTrend.message}
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  As you start recording sessions and generating manuals, FlowToManual will surface
+                  helpful trends and insights here.
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
