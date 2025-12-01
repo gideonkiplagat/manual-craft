@@ -14,10 +14,13 @@ import NotFound from "@/pages/NotFound";
 import Manuals from "@/pages/Manuals";
 import Recordings from "@/pages/Recordings";
 
+// ⬆️ NEW: Documentation page reused from Manuals Page
+import Documentation from "@/pages/Manuals";
+
 import { AuthProvider } from "@/context/AuthContext";
 import axios from "axios";
 
-// ✅ Wrapper component to extract recordingId from URL and pass it to ManualGenerator
+// Wrapper for manual generator by recordingId
 const GenerateManualWrapper = () => {
   const { id: recordingId } = useParams();
 
@@ -56,12 +59,21 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/dashboard" element={<Dashboard />} />
+
+            {/* Manuals page */}
             <Route path="/manuals" element={<Manuals />} />
+
+            {/* Recordings page */}
             <Route path="/recordings" element={<Recordings />} />
+
+            {/* 🔥 NEW — Documentation route */}
+            <Route path="/documentation" element={<Manuals />} />
+
             <Route path="/sops" element={<MySops />} />
             <Route path="/generate/:id" element={<GenerateManualWrapper />} />
             <Route path="/sessions/:id" element={<SessionViewer />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/subscribe" element={<Index />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

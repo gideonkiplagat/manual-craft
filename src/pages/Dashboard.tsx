@@ -82,9 +82,8 @@ const Dashboard = () => {
           if (status === 404 || status === 405) {
             setRecentRecordings([]);
           } else if (status === 401) {
-            // Token expired or missing → logout user safely
             localStorage.removeItem('token');
-            window.location.href = '/login'; // or trigger your AuthDialog
+            window.location.href = '/login';
             return;
           } else {
             setRecentRecordings([]);
@@ -118,9 +117,9 @@ const Dashboard = () => {
           );
         }
 
-        // Fetch user profile
+        // Fetch user profile (CHANGED URL)
         try {
-          const profileRes = await axios.get('/api/user/profile', {
+          const profileRes = await axios.get('/api/dashboard/user/profile', {
             headers: { Authorization: `Bearer ${token}` },
           });
           setProfile(profileRes.data);
@@ -201,7 +200,6 @@ const Dashboard = () => {
         return;
       }
 
-      // ✅ Prefer session-based generation
       const effectiveSessionId = _sessionIdOverride ?? lastSessionId;
       if (effectiveSessionId) {
         setLoadingGenerateFor(String(effectiveSessionId));
@@ -233,7 +231,6 @@ const Dashboard = () => {
         return;
       }
 
-      // Fallback: recording-based endpoint if somehow no session is available
       const targetRecordingId = _recordingIdOverride || lastRecordingId;
       if (!targetRecordingId) {
         toast({
@@ -342,7 +339,6 @@ const Dashboard = () => {
   const lastRecording = recentRecordings?.[0] || null;
   const lastManual = recentManuals?.[0] || null;
 
-  // Simple “trend” data for last few items
   const activityTrend = useMemo(() => {
     const recCount = recentRecordings.length;
     const manCount = recentManuals.length;
@@ -377,7 +373,6 @@ const Dashboard = () => {
             </p>
           </div>
 
-          {/* Quick actions */}
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Button
               className="rounded-full px-5 shadow-md bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90"
@@ -410,6 +405,16 @@ const Dashboard = () => {
               <BookOpen className="h-4 w-4 mr-2" />
               View Documentation
             </Button>
+             {/* ⭐ View Recordings (new) */}
+            <Button
+              variant="ghost"
+              className="rounded-full px-5 hover:bg-white/60"
+              onClick={() => navigate('/recordings')}
+            >
+              <Video className="h-4 w-4 mr-2" />
+              View Recordings
+            </Button>
+
           </div>
         </section>
 
@@ -526,7 +531,6 @@ const Dashboard = () => {
         {/* RECENT ACTIVITY + SIMPLE "CHART" TREND                             */}
         {/* ------------------------------------------------------------------ */}
         <section className="grid lg:grid-cols-2 gap-10">
-          {/* Recent activity cards */}
           <div className="space-y-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide">
               <BarChart3 className="h-4 w-4 text-purple-600" />
@@ -582,7 +586,6 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Simple “trend” visualization + insight */}
           <div className="space-y-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide">
               <Sparkles className="h-4 w-4 text-purple-600" />

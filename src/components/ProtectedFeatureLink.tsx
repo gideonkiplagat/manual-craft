@@ -6,9 +6,16 @@ export default function ProtectedFeatureLink({ to, children, className }) {
   const navigate = useNavigate();
 
   const handleClick = (e) => {
-    if (!user || user.plan_type === "free") {
+    if (!user) {
       e.preventDefault();
-      navigate("/subscribe");
+      navigate("/#pricing");
+      return;
+    }
+
+    if (user.plan === "free") {
+      e.preventDefault();
+      navigate("/#pricing");
+      return;
     }
   };
 
