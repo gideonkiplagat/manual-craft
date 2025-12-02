@@ -7,14 +7,14 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
-    proxy: {
-      '/api': {
-        //target: 'http://localhost:5000',  // 👈 Flask server
-        target: 'http://68.183.216.215:5000',  // 👈 Production server
-        changeOrigin: true,
-        secure: false,
-      },
-    },
+    // proxy: {
+    //   '/api': {
+    //     //target: 'http://localhost:5000',  // 👈 Flask server
+    //     target: 'http://68.183.216.215:5000',  // 👈 Production server
+    //     changeOrigin: true,
+    //     secure: false,
+    //   },
+    // },
   },
   plugins: [
     react(),

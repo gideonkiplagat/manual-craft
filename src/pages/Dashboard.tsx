@@ -292,7 +292,7 @@ const Dashboard = () => {
     if (!generatedManualId) return;
     const token = localStorage.getItem('token');
     console.log('Downloading manual with ID:', generatedManualId);
-    window.open(`/api/manuals/download/${generatedManualId}?token=${token}`, '_blank');
+    window.open(`${BaseURL}/api/manuals/download/${generatedManualId}?token=${token}`, '_blank');
   };
 
   const handleDownloadRecording = (recordingId: string) => {
@@ -302,7 +302,7 @@ const Dashboard = () => {
 
   const handleShareRecording = async (recordingId: string) => {
     try {
-      const url = `${window.location.origin}/api/recordings/download/${recordingId}`;
+      const url = `${BaseURL}/api/recordings/download/${recordingId}`;
       await navigator.clipboard.writeText(url);
       toast({
         title: 'Link copied',
@@ -319,7 +319,7 @@ const Dashboard = () => {
 
   const handleShareManual = async (manualId: number | string) => {
     try {
-      const url = `${window.location.origin}/api/manuals/download/${manualId}`;
+      const url = `${BaseURL}/api/manuals/download/${manualId}`;
       await navigator.clipboard.writeText(url);
       toast({
         title: 'Link copied',

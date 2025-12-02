@@ -34,12 +34,12 @@ export default function Manuals() {
 
   const handleDownload = (id: number) => {
     const token = localStorage.getItem("token");
-    window.open(`/api/manuals/download/${id}?token=${token}`, "_blank");
+    window.open(`${BaseURL}/api/manuals/download/${id}?token=${token}`, "_blank");
   };
 
   const handleShare = async (id: number) => {
     try {
-      const url = `${window.location.origin}/api/manuals/download/${id}`;
+      const url = `${BaseURL}/api/manuals/download/${id}`;
       await navigator.clipboard.writeText(url);
       toast({
         title: "Link copied",

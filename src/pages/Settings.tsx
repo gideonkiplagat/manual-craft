@@ -14,7 +14,7 @@ export const Settings = () => {
   }, []);
 
   const updateRole = async () => {
-    const res = await fetch("/api/auth/update-role", {
+    const res = await fetch(BaseURL + "/api/auth/update-role", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role }),
