@@ -3,6 +3,7 @@ import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Download, Share2, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { BaseURL } from "@/lib/utils";
 
 export default function Manuals() {
   const { toast } = useToast();
@@ -15,7 +16,7 @@ export default function Manuals() {
     const fetchManuals = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("/api/manuals/", {
+        const res = await axios.get(BaseURL + "/api/manuals/", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setManuals(Array.isArray(res.data) ? res.data : []);
@@ -57,8 +58,8 @@ export default function Manuals() {
     try {
       const token = localStorage.getItem("token");
 
-      const response = await axios.get(
-        `/api/manuals/preview/${manualId}`,
+      const response = await axios.get<Blob>(
+        `${BaseURL}/api/manuals/preview/${manualId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
           responseType: "blob",

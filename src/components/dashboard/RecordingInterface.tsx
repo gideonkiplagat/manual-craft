@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Play, Square, Video, Camera, Mic, Settings } from 'lucide-react';
 import axios from 'axios';
+import { BaseURL } from '@/lib/utils';
 
 interface RecordingInterfaceProps {
   onStartRecording?: () => void;
@@ -430,7 +431,7 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
             );
             let uploadRes;
             try {
-              uploadRes = await axios.post<RecordingResponse>('/api/recordings/upload', formData, {
+              uploadRes = await axios.post<RecordingResponse>(BaseURL +'/api/recordings/upload', formData, {
                 headers: { Authorization: `Bearer ${authToken}` },
               });
               console.log('Upload response:', uploadRes?.status, uploadRes?.data);
@@ -500,7 +501,7 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
             let sessionId: number | string | null = null;
             try {
               console.log('Creating session with payload:', sessionPayload);
-              const sessionRes = await axios.post<SessionResponse>('/api/sessions/', sessionPayload, {
+              const sessionRes = await axios.post<SessionResponse>(BaseURL + '/api/sessions/', sessionPayload, {
                 headers: { Authorization: `Bearer ${authToken2}` },
               });
               sessionId = sessionRes?.data?.id;
@@ -551,7 +552,7 @@ export const RecordingInterface = ({ onStartRecording, onStopRecording }: Record
                   stepsPayload.steps[0]
                 );
 
-                await axios.post(`/api/sessions/${sessionId}/steps`, stepsPayload, {
+                await axios.post(`${BaseURL}/api/sessions/${sessionId}/steps`, stepsPayload, {
                   headers: { Authorization: `Bearer ${authToken3}` },
                 });
                 console.log('Steps uploaded');

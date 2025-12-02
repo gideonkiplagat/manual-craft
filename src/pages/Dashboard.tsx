@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { BaseURL } from '@/lib/utils';
 
 interface ManualResponse {
   message: string;
@@ -68,7 +69,7 @@ const Dashboard = () => {
         let manualsRes: any = null;
 
         try {
-          recordingsRes = await axios.get<any[]>('/api/recordings/', {
+          recordingsRes = await axios.get<any[]>(BaseURL + '/api/recordings/', {
             headers: { Authorization: `Bearer ${token}` },
           });
           setRecentRecordings(Array.isArray(recordingsRes.data) ? recordingsRes.data : []);
@@ -91,7 +92,7 @@ const Dashboard = () => {
         }
 
         try {
-          manualsRes = await axios.get<any[]>('/api/manuals/', {
+          manualsRes = await axios.get<any[]>(BaseURL + '/api/manuals/', {
             headers: { Authorization: `Bearer ${token}` },
           });
           setRecentManuals(Array.isArray(manualsRes.data) ? manualsRes.data : []);
@@ -106,7 +107,7 @@ const Dashboard = () => {
 
         // Fetch dashboard statistics
         try {
-          const statsRes = await axios.get('/api/dashboard/stats', {
+          const statsRes = await axios.get(BaseURL + '/api/dashboard/stats', {
             headers: { Authorization: `Bearer ${token}` },
           });
           setStats(statsRes.data);
@@ -119,7 +120,7 @@ const Dashboard = () => {
 
         // Fetch user profile (CHANGED URL)
         try {
-          const profileRes = await axios.get('/api/dashboard/user/profile', {
+          const profileRes = await axios.get(BaseURL + '/api/dashboard/user/profile', {
             headers: { Authorization: `Bearer ${token}` },
           });
           setProfile(profileRes.data);
@@ -205,7 +206,7 @@ const Dashboard = () => {
         setLoadingGenerateFor(String(effectiveSessionId));
         const export_format = format.toLowerCase();
 
-        const url = `/api/manuals/generate/${effectiveSessionId}?format=${export_format}&include_screenshots=${includeScreenshots}`;
+        const url = `${BaseURL}/api/manuals/generate/${effectiveSessionId}?format=${export_format}&include_screenshots=${includeScreenshots}`;
         const res = await axios.post<{ manual_id: number }>(
           url,
           {},
@@ -218,7 +219,7 @@ const Dashboard = () => {
           toast({ title: 'Success', description: 'Manual generated successfully!' });
 
           try {
-            const manualsRes = await axios.get<any[]>('/api/manuals/', {
+            const manualsRes = await axios.get<any[]>(BaseURL + '/api/manuals/', {
               headers: { Authorization: `Bearer ${token}` },
             });
             setRecentManuals(Array.isArray(manualsRes.data) ? manualsRes.data : []);
@@ -244,7 +245,7 @@ const Dashboard = () => {
       setLoadingGenerateFor(String(targetRecordingId));
 
       const res = await axios.post<{ manual_id: number }>(
-        `/api/manuals/generate/recording/${targetRecordingId}?format=${format.toLowerCase()}&include_screenshots=${includeScreenshots}`,
+        `${BaseURL}/api/manuals/generate/recording/${targetRecordingId}?format=${format.toLowerCase()}&include_screenshots=${includeScreenshots}`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -256,7 +257,7 @@ const Dashboard = () => {
         setManualSuccess(true);
         toast({ title: 'Success', description: 'Manual generated successfully!' });
         try {
-          const manualsRes = await axios.get<any[]>('/api/manuals/', {
+          const manualsRes = await axios.get<any[]>(BaseURL + '/api/manuals/', {
             headers: { Authorization: `Bearer ${token}` },
           });
           setRecentManuals(Array.isArray(manualsRes.data) ? manualsRes.data : []);

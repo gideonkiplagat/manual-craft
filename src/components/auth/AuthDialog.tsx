@@ -15,6 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { useNavigate } from 'react-router-dom';
+import { BaseURL } from '@/lib/utils';
 
 interface AuthDialogProps {
   isOpen: boolean;
@@ -44,7 +45,7 @@ export const AuthDialog = ({ isOpen, onClose, defaultTab = 'login' }: AuthDialog
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(BaseURL + '/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -90,7 +91,7 @@ export const AuthDialog = ({ isOpen, onClose, defaultTab = 'login' }: AuthDialog
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await fetch(BaseURL + '/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

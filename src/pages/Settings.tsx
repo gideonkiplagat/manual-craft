@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
+import { BaseURL } from "@/lib/utils";
 
 export const Settings = () => {
   const [role, setRole] = useState("");
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch(BaseURL + "/api/auth/me")
       .then(res => res.json())
       .then(data => setRole(data.role));
   }, []);

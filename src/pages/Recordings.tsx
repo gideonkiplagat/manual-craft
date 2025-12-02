@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Download, Share2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { BaseURL } from '@/lib/utils';
 
 export default function Recordings() {
   const { toast } = useToast();
@@ -12,7 +13,7 @@ export default function Recordings() {
     const fetchRecs = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get('/api/recordings/', {
+        const res = await axios.get(BaseURL + '/api/recordings/', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setRecs(Array.isArray(res.data) ? res.data : []);

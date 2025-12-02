@@ -13,6 +13,7 @@ import { Settings } from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
 import Manuals from "@/pages/Manuals";
 import Recordings from "@/pages/Recordings";
+import { BaseURL } from "./lib/utils";
 
 // ⬆️ NEW: Documentation page reused from Manuals Page
 import Documentation from "@/pages/Manuals";
@@ -28,7 +29,7 @@ const GenerateManualWrapper = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        "/api/manuals/generate",
+        BaseURL + "/api/manuals/generate",
         {
           recording_id: recordingId,
           role,

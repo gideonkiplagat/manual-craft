@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { Textarea } from "@/components/ui/textarea";
+import { BaseURL } from "@/lib/utils";
 
 export const MySops = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -17,7 +18,7 @@ export const MySops = () => {
   const fetchSops = async () => {
     try {
       setLoading(true);
-      const res = await axios.get("/api/sops/");
+      const res = await axios.get(BaseURL + "/api/sops/");
       // Backend returns { sops: ["filename.ext"] }
   setSops(Array.isArray((res as any).data?.sops) ? (res as any).data.sops : []);
     } catch (err) {
@@ -48,7 +49,7 @@ export const MySops = () => {
 
       // backend registers POST /api/sops/ (see swagger.json).
       // Let axios set the multipart Content-Type (with boundary) automatically.
-      await axios.post("/api/sops/", formData, {
+      await axios.post(BaseURL + "/api/sops/", formData, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
@@ -76,7 +77,7 @@ export const MySops = () => {
   const handleDownload = async (name: string) => {
     try {
       // Try to fetch the file as a blob from /api/sops/{name}
-      const res = (await axios.get(`/api/sops/${encodeURIComponent(name)}`, {
+      const res = (await axios.get(`${BaseURL}/api/sops/${encodeURIComponent(name)}`, {
         responseType: "blob",
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       })) as any;

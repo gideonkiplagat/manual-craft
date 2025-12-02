@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Clock, FileText, Trash2 } from "lucide-react";
+import { BaseURL } from "@/lib/utils";
 
 export default function Sessions() {
   const navigate = useNavigate();
@@ -11,7 +12,7 @@ export default function Sessions() {
     queryKey: ["sessions"],
     queryFn: async () => {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/recordings", {
+      const res = await fetch(BaseURL + "/api/recordings", {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to load sessions");
